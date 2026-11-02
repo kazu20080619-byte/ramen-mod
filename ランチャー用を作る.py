@@ -7,6 +7,7 @@ D:\\ramen-mod\\src\\Mods の MOD から、D:\\ramen-mod\\配布\\ランチャー
   - UE4SS 本体・dll・exe・bat・ps1 は入れない
   - ZIP 直下に ramen-mod.json を 1 つ
 """
+import hashlib
 import json
 import re
 import sys
@@ -16,8 +17,11 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 SRC = HERE / "src" / "Mods"
 OUT = HERE / "配布" / "ランチャー用"
-VERSION = "1.1.0"
+# 版は launcher\build.py の VERSION とそろえる（GitHub のリリースと同じ番号にする）
+VERSION = re.search(r'^VERSION = "([^"]+)"', (HERE / "launcher" / "build.py").read_text(encoding="utf-8"), re.M).group(1)
 ALLOWED = {".lua", ".png", ".jpg", ".jpeg", ".json", ".md", ".txt", ".ini", ".cfg"}
+REPO_URL = "https://github.com/kazu20080619-byte/ramen-mod"
+INDEX = OUT / "ramen-mods-index.json"  # 友だちのランチャーが読む一覧（GitHub のリリースにも上げる）
 
 MODS = {
     "RamenEmotes": {
@@ -63,7 +67,7 @@ def metadata(info):
         "dependencies": [],
         "multiplayer": info["multiplayer"],
         "assets": [],
-        "source": "",
+        "source": REPO_URL,
         "description": info["description"],
     }
 
@@ -121,11 +125,20 @@ def main():
     for old in OUT.glob("*.zip"):
         old.unlink()
     ok = True
+    index = {"format": 1, "version": VERSION, "tag": f"v{VERSION}", "source": REPO_URL, "mods": []}
     for mod, info in MODS.items():
         z = build(mod, info)
         problems = check(z, mod)
         print(f"{z.name}: {'OK' if not problems else problems}")
         ok = ok and not problems
+        index["mods"].append({
+            "id": info["id"], "folder": mod, "name": info["name"], "version": VERSION,
+            "file": z.name, "size": z.stat().st_size,
+            "sha256": hashlib.sha256(z.read_bytes()).hexdigest(),
+            "multiplayer": info["multiplayer"], "description": info["description"],
+        })
+    INDEX.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+    print(f"{INDEX.name}: {len(index['mods'])} MOD")
     return 0 if ok else 1
 
 

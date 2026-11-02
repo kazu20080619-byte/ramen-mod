@@ -6,6 +6,7 @@
 2. 上げるための gh release create のコマンドを表示する
 """
 import importlib.util
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -33,11 +34,18 @@ def main():
             print(f"ない: {f}")
             return 1
     notes = (f"ラーメンMOD {tag}。ランチャーを使っている人は、起動すると「更新しますか？」と聞かれます。"
-             "はじめての人は ラーメンMODランチャー.zip を展開して RamenLauncher.exe を起動してね。")
+             "はじめての人は RamenModLauncher.zip を展開して RamenLauncher.exe を起動してね。")
     print()
     print("GitHub に上げるときは、D:\\ramen-mod で次を動かす:")
     print()
-    print(f'gh release create {tag} 配布/ramen-mods.zip 配布/RamenLauncher.exe 配布/ラーメンMODランチャー.zip '
+    # GitHub はファイル名の日本語を消すので、英語の名前のコピーを上げる
+    shutil.copy2(HERE / "配布" / "ラーメンMODランチャー.zip", HERE / "配布" / "RamenModLauncher.zip")
+    # 友だちのランチャー用（1 MOD = 1 zip）と一覧も作って、いっしょに上げる
+    if subprocess.run([sys.executable, str(HERE / "ランチャー用を作る.py")]).returncode != 0:
+        print("ランチャー用を作る.py が失敗しました。リリースは作りません。")
+        return 1
+    print(f'gh release create {tag} 配布/ramen-mods.zip 配布/RamenLauncher.exe 配布/RamenModLauncher.zip '
+          f'配布/ランチャー用/*.zip 配布/ランチャー用/ramen-mods-index.json '
           f'--title "ラーメンMOD {tag}" --notes "{notes}"')
     return 0
 
