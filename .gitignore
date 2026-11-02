@@ -1,0 +1,28 @@
+# 上げるものだけを書く（ほかは全部上げない）
+/*
+!/.gitignore
+!/README.md
+!/説明書.md
+!/仕様_ガチャとおみくじ.md
+!/パックを作る.py
+!/ランチャー用を作る.py
+!/リリースを作る.py
+!/ラーメンMODエディタ.pyw
+!/MODの切りかえ.ps1
+!/導入ツール/
+!/tex/
+!/launcher/
+!/src/
+
+# ランチャーのビルド結果
+/launcher/dist/
+/launcher/obj/
+*.exe
+
+# テスト用・使っていない MOD と、遊んだ記録
+/src/Mods/RamenDevBridge/
+/src/Mods/RamenPad/
+/src/Mods/*/data/
+*.log
+*.dmp
+__pycache__/
