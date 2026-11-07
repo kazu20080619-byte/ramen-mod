@@ -1,0 +1,12 @@
+{
+  "id": "ramen-emotes",
+  "name": "ラーメンMOD: 新しいエモート",
+  "app_id": "4968640",
+  "game_builds": [],
+  "ue4ss": ">=3.0.1",
+  "dependencies": [],
+  "multiplayer": "Unknown",
+  "assets": [],
+  "source": "https://github.com/kazu20080619-byte/ramen-mod",
+  "description": "テーブル拭き・手裏剣・うんこ・醤油一気飲み など 11 個のエモート。ガチャガチャ（ramen-gacha）を入れると、ガチャで出るまで使えない。ロッカーで付けるには、ゲームの RealRamenSimulator/Config/Tags/ に RamenMod.ini（リリースの RamenMod-tags.ini）も置く。"
+}

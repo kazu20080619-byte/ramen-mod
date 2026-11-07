@@ -1,0 +1,14 @@
+{
+  "id": "ramen-omikuji",
+  "name": "ラーメンMOD: おみくじ箱",
+  "app_id": "4968640",
+  "game_builds": [],
+  "ue4ss": ">=3.0.1",
+  "dependencies": [],
+  "multiplayer": "Host Only",
+  "assets": [
+    "Men.ItemId.Decoration.Mop"
+  ],
+  "source": "https://github.com/kazu20080619-byte/ramen-mod",
+  "description": "パソコンで「おみくじ箱」を買って置く（モップの飾りを借りる）。大吉〜大凶で、その日いっぱい効果が続く。酔っ払いの効果は ramen-yoi といっしょに使う。"
+}

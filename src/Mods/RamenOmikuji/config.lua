@@ -9,8 +9,13 @@ return {
     -- パソコンで売る「おみくじ箱」の値段（$）。モップの飾りを借りて売っています
     shopPrice = 30,
 
-    -- キー（UE4SS の Key の名前）。use＝使う、rotL/rotR＝向き、small/big＝大きさ
-    keys = { use = "E", rotL = "OEM_FOUR", rotR = "OEM_SIX", small = "OEM_MINUS", big = "OEM_PLUS" },
+    -- 台の前でメニューを開くキー（UE4SS の Key の名前。例: "E"、"R"、"F"）
+    keys = { use = "E" },
+
+    -- メニュー
+    yawStep = 5,         -- 向きを 1 回に変える角度（度）
+    scaleStep = 0.05,    -- 大きさを 1 回に変える量（0.3〜3 倍のあいだ）
+    showPrompt = true,   -- 台の前に「E：…」の案内を出す
 
     -- 演出（true で使う・false で止める）
     fx = {

@@ -1,0 +1,168 @@
+{
+  "format": 1,
+  "short": "ガチャガチャ",
+  "mark": "回",
+  "who": "ホストだけ",
+  "pack": "fun",
+  "summary": "お店に置くガチャ。並・上・特上・極・神。エモートや具材の雨が出る。",
+  "keys": [
+    {
+      "key": "E",
+      "where": "ガチャの台の前"
+    }
+  ],
+  "recommends": [
+    {
+      "id": "ramen-emotes",
+      "why": "特上・神で新しいエモートが出ます"
+    }
+  ],
+  "config": {
+    "file": "config.lua",
+    "groups": [
+      {
+        "title": "お金と天井",
+        "fields": [
+          {
+            "name": "price",
+            "kind": "int",
+            "label": "1 回の値段（$）",
+            "default": "10",
+            "min": 0
+          },
+          {
+            "name": "price10",
+            "kind": "int",
+            "label": "10 連の値段（$）",
+            "default": "100",
+            "min": 0
+          },
+          {
+            "name": "ceiling",
+            "kind": "int",
+            "label": "天井（回）",
+            "default": "100",
+            "min": 1,
+            "max": 1000
+          },
+          {
+            "name": "tenPull",
+            "kind": "bool",
+            "label": "メニューに 10 連を出す",
+            "default": "true"
+          },
+          {
+            "name": "shopPrice",
+            "kind": "int",
+            "label": "台の値段（パソコン、$）",
+            "default": "50",
+            "min": 0
+          }
+        ]
+      },
+      {
+        "title": "演出",
+        "style": "chips",
+        "fields": [
+          {
+            "name": "fx.flash",
+            "kind": "bool",
+            "label": "光る",
+            "default": "true"
+          },
+          {
+            "name": "fx.shake",
+            "kind": "bool",
+            "label": "ゆれる",
+            "default": "true"
+          },
+          {
+            "name": "fx.slowmo",
+            "kind": "bool",
+            "label": "スロー",
+            "default": "true"
+          },
+          {
+            "name": "fx.presign",
+            "kind": "bool",
+            "label": "前触れ",
+            "default": "true"
+          },
+          {
+            "name": "fx.fireworks",
+            "kind": "bool",
+            "label": "キラキラ",
+            "default": "true"
+          },
+          {
+            "name": "fx.sound",
+            "kind": "bool",
+            "label": "音",
+            "default": "true"
+          },
+          {
+            "name": "share",
+            "kind": "bool",
+            "label": "すごい結果をみんなにも見せる",
+            "default": "true",
+            "chip": false
+          }
+        ]
+      },
+      {
+        "title": "台のメニュー",
+        "fields": [
+          {
+            "name": "keys.use",
+            "kind": "key",
+            "label": "メニューを開くキー",
+            "default": "E"
+          },
+          {
+            "name": "yawStep",
+            "kind": "int",
+            "label": "向き 1 回の角度（度）",
+            "default": "5",
+            "min": 1,
+            "max": 90
+          },
+          {
+            "name": "scaleStep",
+            "kind": "number",
+            "label": "大きさ 1 回の量",
+            "default": "0.05",
+            "min": 0.01,
+            "max": 1
+          },
+          {
+            "name": "showPrompt",
+            "kind": "bool",
+            "label": "台の前に案内を出す",
+            "default": "true"
+          }
+        ]
+      },
+      {
+        "title": "大当たり",
+        "fields": [
+          {
+            "name": "rainCount",
+            "kind": "int",
+            "label": "極: 具材の雨の数",
+            "default": "20",
+            "min": 0,
+            "max": 100
+          },
+          {
+            "name": "ramenCount",
+            "kind": "int",
+            "label": "神: ラーメンの雨の数",
+            "default": "8",
+            "min": 0,
+            "max": 50
+          }
+        ]
+      }
+    ]
+  }
+}

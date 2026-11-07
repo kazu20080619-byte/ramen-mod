@@ -52,13 +52,60 @@ function C.safe(fn, where)
     end
 end
 
+-------------------------------------------------------------------------------
+-- 待つ・くり返すは、ゲームのスレッドで動かす。
+-- UE4SS の LoopAsync / ExecuteWithDelay は、MOD の Lua を別のスレッドで動かす。同じ MOD の中で
+-- ゲームのスレッドの Lua（フック・ExecuteInGameThread の中身）と同時に動くと Lua のメモリがこわれて、
+-- 「Ref was not function」が出たり、値がまざったり、ゲームが落ちたりする。
+-- 古い UE4SS で …InGameThread… がないときだけ、前のやり方にする。
+-------------------------------------------------------------------------------
+C.GAME_THREAD = type(LoopInGameThreadWithDelay) == "function"
+    and type(ExecuteInGameThreadWithDelay) == "function" and type(CancelDelayedAction) == "function"
+
 function C.later(sec, fn)
     local f = C.safe(fn, "later")
-    ExecuteWithDelay(math.max(1, math.floor(sec * 1000)), function() ExecuteInGameThread(f) end)
+    local ms = math.max(1, math.floor(sec * 1000))
+    if C.GAME_THREAD then
+        ExecuteInGameThreadWithDelay(ms, f)
+    else
+        ExecuteWithDelay(ms, function() ExecuteInGameThread(f) end)
+    end
+end
+
+-- ms ごとに fn を呼ぶ（ゲームのスレッドで）。fn が true を返したら止まる
+function C.loop(ms, fn, where)
+    local stopped, handle = false, nil
+    if C.GAME_THREAD then
+        handle = LoopInGameThreadWithDelay(ms, function()
+            if stopped then return end
+            local ok, r = pcall(fn)
+            if not ok then
+                print("[ramen_common] error in " .. (where or "loop") .. ": " .. tostring(r) .. "\n")
+            elseif r then
+                stopped = true
+                if handle then CancelDelayedAction(handle) end
+            end
+        end)
+        return
+    end
+    local f = C.safe(function() if not stopped and fn() then stopped = true end end, where or "loop")
+    LoopAsync(ms, function()
+        if stopped then return true end
+        ExecuteInGameThread(f)
+        return false
+    end)
 end
 
 function C.now(fn, where)
     ExecuteInGameThread(C.safe(fn, where or "now"))
+end
+
+-- キー: UE4SS はキーの呼び出しも別のスレッドで動かすので、そこでは ゲームのスレッドに渡すだけにする
+-- （関数は先に作っておいて、押したときに Lua で新しい物を作らない）
+function C.key(k, mods, fn, where)
+    local f = C.safe(fn, where or "key")
+    local cb = function() ExecuteInGameThread(f) end
+    if mods then RegisterKeyBind(k, mods, cb) else RegisterKeyBind(k, cb) end
 end
 
 function C.console(cmd)
@@ -93,10 +140,13 @@ function C.config(modName, defaults)
     local f = io.open(path, "r")
     if f then
         local src = f:read("a"); f:close()
-        local chunk = load(src, "config", "t", {})
+        local chunk, err = load(src, "config", "t", {})
         if chunk then
             local ok, t = pcall(chunk)
-            if ok and type(t) == "table" then merge(defaults, t) end
+            if ok and type(t) == "table" then merge(defaults, t)
+            else print("[" .. modName .. "] config.lua を読めなかったので、はじめの設定で動きます: " .. tostring(t) .. "\n") end
+        else
+            print("[" .. modName .. "] config.lua に書きまちがいがあるので、はじめの設定で動きます: " .. tostring(err) .. "\n")
         end
     end
     return defaults
@@ -538,8 +588,7 @@ function C.placeables(opts)
     local function bind(name, mods, fn)
         local k = keyOf(name)
         if not k then print("[ramen_common] unknown key: " .. tostring(name) .. "\n") return end
-        if mods then RegisterKeyBind(k, mods, function() C.now(fn, "key") end)
-        else RegisterKeyBind(k, function() C.now(fn, "key") end) end
+        C.key(k, mods, fn, "key " .. name)
     end
 
     M.adjust = adjustNear  -- コンソールからも使う（gacha turn 15 など）
@@ -667,13 +716,13 @@ function C.placeables(opts)
         end
         list[#list + 1] = {
             text = function() local o = menuObj(); local yaw = o and adjOf(o) or 0; return string.format("向き　◀ %+d° ▶", yaw) end,
-            left = function() local o = menuObj(); if o then adjustObj(o, -5, 0, true) end end,
-            right = function() local o = menuObj(); if o then adjustObj(o, 5, 0, true) end end,
+            left = function() local o = menuObj(); if o then adjustObj(o, -(opts.yawStep or 5), 0, true) end end,
+            right = function() local o = menuObj(); if o then adjustObj(o, opts.yawStep or 5, 0, true) end end,
             enter = function() local o = menuObj(); if o then local yaw = adjOf(o); adjustObj(o, -yaw, 0, true) end end }
         list[#list + 1] = {
             text = function() local o = menuObj(); local _, s = 0, 1; if o then _, s = adjOf(o) end; return string.format("大きさ　◀ ×%.2f ▶", s) end,
-            left = function() local o = menuObj(); if o then adjustObj(o, 0, -0.05, true) end end,
-            right = function() local o = menuObj(); if o then adjustObj(o, 0, 0.05, true) end end,
+            left = function() local o = menuObj(); if o then adjustObj(o, 0, -(opts.scaleStep or 0.05), true) end end,
+            right = function() local o = menuObj(); if o then adjustObj(o, 0, opts.scaleStep or 0.05, true) end end,
             enter = function() local o = menuObj(); if o then local _, s = adjOf(o); adjustObj(o, 0, 1 - s, true) end end }
         list[#list + 1] = { text = function() return "ここ（自分の前）に動かす" end,
             enter = function() local o = menuObj(); closeMenu(); if o then M.moveHere(o) end end }
@@ -745,8 +794,7 @@ function C.placeables(opts)
     end)
 
     local tick = 0
-    LoopAsync(250, function()
-        C.now(function()
+    C.loop(250, function()
             tick = tick + 1
             if tick % 4 == 0 then M.scan() end
             if tick % 20 == 1 then C.renameShopItem(opts.supplyRow, opts.itemId, opts.shopName, opts.price) end
@@ -754,7 +802,7 @@ function C.placeables(opts)
             local o = (not menu.open) and M.facing()
             local msg = nil
             if o then
-                msg = opts.prompt(o)
+                msg = opts.showPrompt ~= false and opts.prompt(o) or nil
             elseif not menu.open and (tick % 2 == 0 or prompt) then
                 -- 届いた箱の前（ゲームが模様替えをさせてくれないときだけ）
                 local b = M.facingBox()
@@ -770,9 +818,7 @@ function C.placeables(opts)
                 C.hideText(prompt)
                 prompt = nil
             end
-        end, "placeables")
-        return false
-    end)
+    end, "placeables")
 
     return M
 end
@@ -843,29 +889,25 @@ function C.banner(title, sub, style)
     end
     -- ぽんっと出る → そのまま → 消える
     local steps, i = 8, 0
-    LoopAsync(30, function()
+    C.loop(30, function()
         i = i + 1
-        ExecuteInGameThread(function()
-            if big.widget:IsValid() then
-                local s = scale * (2.2 - 1.2 * math.min(1, i / steps))
-                big.widget:SetRenderScale({ X = s, Y = s })
-            end
-        end)
+        if big.widget:IsValid() then
+            local s = scale * (2.2 - 1.2 * math.min(1, i / steps))
+            big.widget:SetRenderScale({ X = s, Y = s })
+        end
         return i >= steps
-    end)
+    end, "banner pop")
     local hold = style.hold or 2.2
     C.later(hold, function()
         local k = 0
-        LoopAsync(40, function()
+        C.loop(40, function()
             k = k + 1
-            ExecuteInGameThread(function()
-                local a = math.max(0, 1 - k / 10)
-                if big.widget:IsValid() then big.widget:SetRenderOpacity(a) end
-                if small and small.widget:IsValid() then small.widget:SetRenderOpacity(a) end
-                if k >= 10 then C.hideText(big); C.hideText(small) end
-            end)
+            local a = math.max(0, 1 - k / 10)
+            if big.widget:IsValid() then big.widget:SetRenderOpacity(a) end
+            if small and small.widget:IsValid() then small.widget:SetRenderOpacity(a) end
+            if k >= 10 then C.hideText(big); C.hideText(small) end
             return k >= 10
-        end)
+        end, "banner fade")
     end)
     return big, small
 end

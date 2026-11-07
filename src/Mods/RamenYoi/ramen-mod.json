@@ -1,0 +1,12 @@
+{
+  "id": "ramen-yoi",
+  "name": "ラーメンMOD: 酔っ払い",
+  "app_id": "4968640",
+  "game_builds": [],
+  "ue4ss": ">=3.0.1",
+  "dependencies": [],
+  "multiplayer": "Unknown",
+  "assets": [],
+  "source": "https://github.com/kazu20080619-byte/ramen-mod",
+  "description": "カウンターでビールを飲むと酔っ払う。飲みすぎ・醤油一気飲みで倒れて、お店の前で目が覚める。"
+}

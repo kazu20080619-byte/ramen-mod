@@ -1,0 +1,73 @@
+{
+  "format": 1,
+  "short": "ウィンドウの大きさ",
+  "mark": "窓",
+  "who": "自分だけ",
+  "pack": "always",
+  "summary": "フルスクリーンと小さいウィンドウを切りかえる。",
+  "keys": [
+    {
+      "key": "F11",
+      "where": "どこでも"
+    }
+  ],
+  "config": {
+    "file": "config.lua",
+    "groups": [
+      {
+        "title": "キー",
+        "fields": [
+          {
+            "name": "key",
+            "kind": "key",
+            "label": "切りかえキー",
+            "default": "F11"
+          },
+          {
+            "name": "altEnter",
+            "kind": "bool",
+            "label": "Alt+Enter でも切りかえる",
+            "default": "true"
+          },
+          {
+            "name": "message",
+            "kind": "bool",
+            "label": "切りかえたらチャットに出す",
+            "default": "true"
+          }
+        ]
+      },
+      {
+        "title": "画面",
+        "fields": [
+          {
+            "name": "fullMode",
+            "kind": "choice",
+            "label": "フルスクリーンの種類",
+            "default": "nil",
+            "choices": [
+              {
+                "value": "nil",
+                "label": "起動したときのまま"
+              },
+              {
+                "value": "0",
+                "label": "ふつう"
+              },
+              {
+                "value": "1",
+                "label": "ボーダーレス"
+              }
+            ]
+          },
+          {
+            "name": "sizes",
+            "kind": "sizelist",
+            "label": "ウィンドウの大きさ（横x縦）",
+            "default": "1280x720, 1600x900"
+          }
+        ]
+      }
+    ]
+  }
+}

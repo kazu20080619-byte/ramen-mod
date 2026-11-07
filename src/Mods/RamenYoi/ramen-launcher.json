@@ -1,0 +1,66 @@
+{
+  "format": 1,
+  "short": "酔っ払い",
+  "mark": "酔",
+  "who": "みんな",
+  "pack": "fun",
+  "summary": "ビールで酔って画面がゆれる。飲みすぎると倒れる。",
+  "keys": [],
+  "config": {
+    "file": "config.lua",
+    "groups": [
+      {
+        "title": "酔う・倒れる",
+        "fields": [
+          {
+            "name": "beer",
+            "kind": "bool",
+            "label": "ビールで酔う",
+            "default": "true"
+          },
+          {
+            "name": "shoyu",
+            "kind": "bool",
+            "label": "醤油一気飲みで倒れる",
+            "default": "true"
+          },
+          {
+            "name": "passOutOn",
+            "kind": "bool",
+            "label": "飲みすぎで倒れる",
+            "default": "true"
+          }
+        ]
+      },
+      {
+        "title": "強さ",
+        "fields": [
+          {
+            "name": "strength",
+            "kind": "number",
+            "label": "ゆれの強さ（倍）",
+            "default": "1.0",
+            "min": 0,
+            "max": 5
+          },
+          {
+            "name": "beerSip",
+            "kind": "int",
+            "label": "1 口で増える酔い",
+            "default": "25",
+            "min": 1,
+            "max": 100
+          },
+          {
+            "name": "decayPerSec",
+            "kind": "number",
+            "label": "1 秒でさめる量",
+            "default": "0.4",
+            "min": 0,
+            "max": 10
+          }
+        ]
+      }
+    ]
+  }
+}

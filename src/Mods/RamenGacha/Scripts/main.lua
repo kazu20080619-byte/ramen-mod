@@ -37,7 +37,11 @@ local CFG = C.config(MOD, {
     shopRow = "Men.ItemId.Decoration.Wetfloor",
     shopPrice = 50,
     -- キー（UE4SS の Key の名前）
-    keys = { use = "E", rotL = "OEM_FOUR", rotR = "OEM_SIX", small = "OEM_MINUS", big = "OEM_PLUS" },
+    keys = { use = "E" },   -- 台の前でメニューを開くキー（UE4SS の Key の名前）
+    yawStep = 5,         -- メニューで向きを 1 回に変える角度（度）
+    scaleStep = 0.05,    -- メニューで大きさを 1 回に変える量
+    showPrompt = true,   -- 台の前に「E：…」の案内を出す
+    tenPull = true,      -- メニューに「10 連」を出す
 })
 
 -- config.lua の rates = { nami = 550, ... } で確率だけ変えられる
@@ -348,6 +352,9 @@ local machines = C.placeables({
     price = CFG.shopPrice,
     keys = CFG.keys,
     reach = CFG.reach,
+    yawStep = CFG.yawStep,
+    scaleStep = CFG.scaleStep,
+    showPrompt = CFG.showPrompt,
     build = function(origin, yaw, scale) return build(origin, yaw, scale) end,
     adjust = function()
         data.adjust = data.adjust or {}
@@ -358,7 +365,7 @@ local machines = C.placeables({
         return string.format("E：ガチャ（天井まで あと %d 回）", CFG.ceiling - (data.pity or 0))
     end,
     useLabel = string.format("1 回まわす（$%d）", CFG.price),
-    shiftUse = true,
+    shiftUse = CFG.tenPull,
     shiftLabel = string.format("10 連（$%d）", CFG.price10),
     use = function(obj, shift)
         if busy then return end
@@ -371,22 +378,19 @@ local machines = C.placeables({
 -- お店に入ったら、そのワールドの保存を読む
 -------------------------------------------------------------------------------
 local lastPawn = nil
-LoopAsync(1000, function()
-    C.now(function()
-        local p = C.pawn()
-        if not p then return end
-        if p:GetAddress() == lastPawn then return end
-        local w = C.worldId()
-        if not w then return end
-        lastPawn = p:GetAddress()
-        world = w
-        data = C.loadData(MOD, world)
-        machine = nil
-        machines.clear()
-        C.later(3.0, function() syncEmotes() end)
-    end)
-    return false
-end)
+C.loop(1000, function()
+    local p = C.pawn()
+    if not p then return end
+    if p:GetAddress() == lastPawn then return end
+    local w = C.worldId()
+    if not w then return end
+    lastPawn = p:GetAddress()
+    world = w
+    data = C.loadData(MOD, world)
+    machine = nil
+    machines.clear()
+    C.later(3.0, function() syncEmotes() end)
+end, "tick")
 
 -- ほかの人のすごい結果
 C.onChat(function(sender, body, id)

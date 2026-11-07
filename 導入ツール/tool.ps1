@@ -79,6 +79,8 @@ Say "ゲームの場所: $GameDir" Gray
 
 $stamp = Get-Date -Format "yyyyMMdd_HHmmss"
 $backupRoot = Join-Path $GameDir "ramenmod_backup"
+# エモートのタグ（ないとロッカーで新しいエモートを付けられない）: Win64 の 2 つ上の Config\Tags
+$tagsDst = Join-Path (Split-Path -Parent (Split-Path -Parent $GameDir)) "Config\Tags\RamenMod.ini"
 
 # --- 削除 -----------------------------------------------------------------
 if ($Mode -eq "uninstall") {
@@ -92,6 +94,7 @@ if ($Mode -eq "uninstall") {
     New-Item -ItemType Directory -Force $dest | Out-Null
     if (Test-Path $dll) { Move-Item $dll $dest }
     if (Test-Path $ue) { Move-Item $ue $dest }
+    if (Test-Path $tagsDst) { Move-Item $tagsDst $dest }
     Say ""
     Say "MOD を外しました。" Green
     Say "外したファイルは、消さずにここへ移しました（ガチャの記録なども入っています）:" Gray
@@ -140,6 +143,18 @@ if ($keep) {
         }
     }
     Say "前のガチャの記録・運勢・台の向きと大きさ・設定を引きつぎました。" Gray
+}
+
+# エモートのタグ: エモートの MOD が入っていれば置く、なければ外す（前のものはバックアップへ）
+$tagsSrc = Join-Path $Here "gameconfig\Tags\RamenMod.ini"
+if ((Test-Path $tagsSrc) -and (Test-Path (Join-Path $dstUe "Mods\RamenEmotes"))) {
+    New-Item -ItemType Directory -Force (Split-Path -Parent $tagsDst) | Out-Null
+    Copy-Item $tagsSrc $tagsDst -Force
+    Say "エモートのタグを入れました（ロッカーで新しいエモートを付けられます）" Gray
+} elseif (Test-Path $tagsDst) {
+    $tagsOld = Join-Path $backupRoot "before_install_$stamp"
+    New-Item -ItemType Directory -Force $tagsOld | Out-Null
+    Move-Item $tagsDst $tagsOld -Force
 }
 
 # ネットから落とした目印をはずす（Windows が DLL を止めないように）

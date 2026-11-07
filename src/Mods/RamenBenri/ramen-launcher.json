@@ -1,0 +1,105 @@
+{
+  "format": 1,
+  "short": "便利機能（バランス崩壊）",
+  "mark": "便",
+  "who": "ホストだけ",
+  "pack": "benri",
+  "summary": "お金・ゲームの速さ・飛ぶ・ワープ・お店のレベル。",
+  "keys": [
+    {
+      "key": "F1",
+      "where": "どこでも"
+    }
+  ],
+  "config": {
+    "file": "config.lua",
+    "groups": [
+      {
+        "title": "キー",
+        "fields": [
+          {
+            "name": "menuKey",
+            "kind": "key",
+            "label": "メニューを開くキー",
+            "default": "F1"
+          },
+          {
+            "name": "ctrlKeys",
+            "kind": "bool",
+            "label": "Ctrl+F1〜F6 も使う",
+            "default": "true"
+          },
+          {
+            "name": "ctrlMoney",
+            "kind": "int",
+            "label": "Ctrl+F1 で足すお金（$）",
+            "default": "10000",
+            "min": 0
+          }
+        ]
+      },
+      {
+        "title": "候補",
+        "fields": [
+          {
+            "name": "money",
+            "kind": "intlist",
+            "label": "お金の候補（$）",
+            "default": "1000, 10000, 100000, 1000000"
+          },
+          {
+            "name": "moneyStart",
+            "kind": "int",
+            "label": "最初に選ぶ候補（何番目）",
+            "default": "2",
+            "min": 1,
+            "max": 20
+          },
+          {
+            "name": "speeds",
+            "kind": "numlist",
+            "label": "ゲームの速さの候補（倍）",
+            "default": "1.0, 2.0, 4.0, 8.0, 0.5",
+            "min": 0.1,
+            "max": 20
+          },
+          {
+            "name": "walkSpeeds",
+            "kind": "numlist",
+            "label": "歩くはやさの候補（倍）",
+            "default": "1.0, 2.0, 3.0, 0.5",
+            "min": 0.1,
+            "max": 20
+          }
+        ]
+      },
+      {
+        "title": "場所とお店",
+        "fields": [
+          {
+            "name": "slots",
+            "kind": "int",
+            "label": "覚えられる場所の数",
+            "default": "5",
+            "min": 1,
+            "max": 20
+          },
+          {
+            "name": "rememberPlaces",
+            "kind": "bool",
+            "label": "覚えた場所をワールドごとに保存",
+            "default": "true"
+          },
+          {
+            "name": "maxLevel",
+            "kind": "int",
+            "label": "お店のレベルの上限",
+            "default": "30",
+            "min": 1,
+            "max": 99
+          }
+        ]
+      }
+    ]
+  }
+}

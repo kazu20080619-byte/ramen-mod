@@ -42,13 +42,15 @@ def main():
     shutil.copy2(HERE / "配布" / "ラーメンMODランチャー.zip", HERE / "配布" / "RamenModLauncher.zip")
     shutil.copy2(HERE / "友達のランチャー用_AIへの指示.md", HERE / "配布" / "AI-instructions-for-friend-launcher.md")
     shutil.copy2(HERE / "説明書.md", HERE / "配布" / "Manual-ja.md")
+    # エモートのタグ（友だちのランチャーは Lua の zip しか入れられないので、別のファイルで上げる）
+    shutil.copy2(HERE / "src" / "GameConfig" / "Tags" / "RamenMod.ini", HERE / "配布" / "RamenMod-tags.ini")
     # 友だちのランチャー用（1 MOD = 1 zip）と一覧も作って、いっしょに上げる
     if subprocess.run([sys.executable, str(HERE / "ランチャー用を作る.py")]).returncode != 0:
         print("ランチャー用を作る.py が失敗しました。リリースは作りません。")
         return 1
     print(f'gh release create {tag} 配布/ramen-mods.zip 配布/RamenLauncher.exe 配布/RamenModLauncher.zip '
           f'配布/ランチャー用/*.zip 配布/ランチャー用/ramen-mods-index.json '
-          f'配布/AI-instructions-for-friend-launcher.md 配布/Manual-ja.md '
+          f'配布/AI-instructions-for-friend-launcher.md 配布/Manual-ja.md 配布/RamenMod-tags.ini '
           f'--title "ラーメンMOD {tag}" --notes "{notes}"')
     return 0
 

@@ -111,6 +111,11 @@ def build(pack, mods):
             data.mkdir()
             (data / "keep.txt").write_text("world data goes here", encoding="utf-8")
 
+    # エモートのタグ。かんたん導入が RealRamenSimulator\Config\Tags に置く
+    if "RamenEmotes" in mods:
+        tags = dest / "gameconfig" / "Tags"
+        tags.mkdir(parents=True)
+        shutil.copy2(Path(__file__).resolve().parent / "src" / "GameConfig" / "Tags" / "RamenMod.ini", tags / "RamenMod.ini")
     (ue / "Mods" / "mods.txt").write_text(mods_txt(mods), encoding="utf-8")
     (dest / "はじめに読んでね.txt").write_text(readme(pack, mods), encoding="utf-8-sig")
     shutil.copy2(Path(__file__).resolve().parent / "説明書.md", dest / "説明書.md")

@@ -14,7 +14,7 @@ import sys
 import zipfile
 from pathlib import Path
 
-VERSION = "1.2.0"   # ランチャーと MOD の版。リリースのタグは v<VERSION>
+VERSION = "1.3.0"   # ランチャーと MOD の版。リリースのタグは v<VERSION>
 
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parent
@@ -27,6 +27,10 @@ EXE_OUT = OUT / "RamenLauncher.exe"
 MODS = ["RamenEmotes", "RamenYoi", "RamenGacha", "RamenOmikuji", "RamenBenri", "RamenWindow"]
 UE4SS = ROOT / "tools" / "ue4ss"          # UE4SS の元ファイル（dwmapi.dll と ue4ss フォルダ）
 SKIP = {"UE4SS.log", "mods.json"}
+WEBVIEW2 = ROOT / "tools" / "webview2" / "pkg"   # WebView2 SDK（Microsoft の署名つき）
+WV2_DLLS = ["Microsoft.Web.WebView2.Core.dll", "Microsoft.Web.WebView2.WinForms.dll", "WebView2Loader.dll"]
+UI = HERE / "ui"                                  # 画面（exe の中に入れる）
+TAGS_INI = ROOT / "src" / "GameConfig" / "Tags" / "RamenMod.ini"   # エモートの GameplayTags
 
 
 def ignore(_dir, names):
@@ -58,14 +62,22 @@ def zip_dir(src, zpath, prefix=None):
 
 
 def main():
-    if DIST.exists():
-        shutil.rmtree(DIST)
-    DIST.mkdir(parents=True)
+    # 中身だけ消す（フォルダを開いているアプリがあっても止まらないように）
+    DIST.mkdir(parents=True, exist_ok=True)
+    for f in DIST.iterdir():
+        if f.is_dir():
+            shutil.rmtree(f)
+        else:
+            f.unlink()
     exe = DIST / "RamenLauncher.exe"
     cmd = [str(CSC), "/nologo", "/target:winexe", "/codepage:65001", "/optimize+", f"/out:{exe}",
            "/r:System.Windows.Forms.dll", "/r:System.Drawing.dll", "/r:System.Core.dll",
            "/r:System.IO.Compression.dll", "/r:System.IO.Compression.FileSystem.dll",
-           str(HERE / "Core.cs"), str(HERE / "SaveData.cs"), str(HERE / "Program.cs"), str(write_build_info())]
+           "/r:System.Web.Extensions.dll",
+           f"/r:{WEBVIEW2 / WV2_DLLS[0]}", f"/r:{WEBVIEW2 / WV2_DLLS[1]}"]
+    cmd += [f"/resource:{f},ui/{f.name}" for f in sorted(UI.iterdir()) if f.is_file()]
+    cmd += [str(HERE / n) for n in ("Core.cs", "SaveData.cs", "Program.cs", "ModConfig.cs", "WebHost.cs", "Catalog.cs")]
+    cmd += [str(write_build_info())]
     r = subprocess.run(cmd, capture_output=True, text=True, encoding="cp932", errors="replace")
     print(r.stdout, r.stderr)
     if r.returncode != 0:
@@ -83,6 +95,15 @@ def main():
     for m in MODS:
         shutil.copytree(ROOT / "src" / "Mods" / m, pay / "mods" / m, ignore=ignore)
     (pay / "version.txt").write_text(VERSION + "\n", encoding="utf-8")
+    # WebView2 の dll: exe のそばと、payload にも（前の版から exe だけ更新したとき、ランチャーがここからコピーする）
+    (pay / "webview2").mkdir()
+    for d in WV2_DLLS:
+        shutil.copy2(WEBVIEW2 / d, DIST / d)
+        shutil.copy2(WEBVIEW2 / d, pay / "webview2" / d)
+    # エモートのタグ（ゲームの Config\Tags に置く ini）。ないとロッカーで新しいエモートを付けられない
+    tags = pay / "gameconfig" / "Tags"
+    tags.mkdir(parents=True)
+    shutil.copy2(TAGS_INI, tags / TAGS_INI.name)
     shutil.copy2(ROOT / "説明書.md", DIST / "説明書.md")
     shutil.copy2(HERE / "つかいかた.txt", DIST / "つかいかた.txt")
 

@@ -9,12 +9,15 @@ local MOD = "RamenOmikuji"
 -------------------------------------------------------------------------------
 local CFG = C.config(MOD, {
     price = 5,
-    share = true,
+    share = true,        -- 大吉・大凶をほかのプレイヤーにも見せる
     -- パソコンで売る「おみくじ箱」（モップの飾りを借りる）
     shopItemId = "Men.ItemId.Decoration.Mop",
     shopRow = "Mop",
     shopPrice = 30,
-    keys = { use = "E", rotL = "OEM_FOUR", rotR = "OEM_SIX", small = "OEM_MINUS", big = "OEM_PLUS" },        -- 大吉・大凶をほかのプレイヤーにも見せる
+    keys = { use = "E" },   -- 台の前でメニューを開くキー（UE4SS の Key の名前）
+    yawStep = 5,         -- メニューで向きを 1 回に変える角度（度）
+    scaleStep = 0.05,    -- メニューで大きさを 1 回に変える量
+    showPrompt = true,   -- 台の前に「E：…」の案内を出す
     reach = 170,
     fx = { flash = true, shake = true, slowmo = true, presign = true, fireworks = true, sound = true },
     -- rate = 1000 回あたり
@@ -184,44 +187,41 @@ end)
 
 -- 1 日続く効果（ときどき起きること）
 local tickN = 0
-LoopAsync(1000, function()
-    C.now(function()
-        if not world then return end
-        tickN = tickN + 1
-        local f = data.fortune
-        if f and f.day ~= today() then
-            data.fortune = nil
-            save()
-            say("運勢の効果が切れた。また引いてね")
-            applySpeed(); showHud()
-            return
+C.loop(1000, function()
+    if not world then return end
+    tickN = tickN + 1
+    local f = data.fortune
+    if f and f.day ~= today() then
+        data.fortune = nil
+        save()
+        say("運勢の効果が切れた。また引いてね")
+        applySpeed(); showHud()
+        return
+    end
+    local e = current()
+    if not e then return end
+    local p = C.pawn()
+    if not p then return end
+    if e.coins and tickN % 45 == 0 then
+        C.addMoney(math.random(1, 3))
+        C.sound("money")
+        say("小銭が落ちていた！")
+    end
+    if e.stumble and math.random() < 1 / 60 then
+        pcall(function()
+            local m = C.load("/Game/Men/Animation/AnimationMontage/Player/AM_Men_041_FrontSmallDamage.AM_Men_041_FrontSmallDamage")
+            p.CharacterMeshComponent:GetAnimInstance():Montage_Play(m, 1.0, 0, 0.0, true)
+        end)
+        say("つまずいた！")
+    end
+    if e.poop and tickN % 30 == 0 then
+        local l = p:K2_GetActorLocation()
+        for i = 1, 3 do
+            C.spawnItem("Men.ItemId.Food.Poop", { X = l.X + (math.random() - 0.5) * 150, Y = l.Y + (math.random() - 0.5) * 150, Z = l.Z + 250 + i * 30 })
         end
-        local e = current()
-        if not e then return end
-        local p = C.pawn()
-        if not p then return end
-        if e.coins and tickN % 45 == 0 then
-            C.addMoney(math.random(1, 3))
-            C.sound("money")
-            say("小銭が落ちていた！")
-        end
-        if e.stumble and math.random() < 1 / 60 then
-            pcall(function()
-                local m = C.load("/Game/Men/Animation/AnimationMontage/Player/AM_Men_041_FrontSmallDamage.AM_Men_041_FrontSmallDamage")
-                p.CharacterMeshComponent:GetAnimInstance():Montage_Play(m, 1.0, 0, 0.0, true)
-            end)
-            say("つまずいた！")
-        end
-        if e.poop and tickN % 30 == 0 then
-            local l = p:K2_GetActorLocation()
-            for i = 1, 3 do
-                C.spawnItem("Men.ItemId.Food.Poop", { X = l.X + (math.random() - 0.5) * 150, Y = l.Y + (math.random() - 0.5) * 150, Z = l.Z + 250 + i * 30 })
-            end
-        end
-        if e.yoi and tickN % 20 == 0 then C.console("yoi " .. e.yoi) end
-    end)
-    return false
-end)
+    end
+    if e.yoi and tickN % 20 == 0 then C.console("yoi " .. e.yoi) end
+end, "tick")
 
 -------------------------------------------------------------------------------
 -- 演出
@@ -313,6 +313,9 @@ local boxes = C.placeables({
     price = CFG.shopPrice,
     keys = CFG.keys,
     reach = CFG.reach,
+    yawStep = CFG.yawStep,
+    scaleStep = CFG.scaleStep,
+    showPrompt = CFG.showPrompt,
     promptY = 0.75,
     build = function(origin, yaw, scale) return build(origin, yaw, scale) end,
     adjust = function()
@@ -333,25 +336,22 @@ local boxes = C.placeables({
 -- お店に入ったら、そのワールドの保存を読む
 -------------------------------------------------------------------------------
 local lastPawn = nil
-LoopAsync(1000, function()
-    C.now(function()
-        local p = C.pawn()
-        if not p or p:GetAddress() == lastPawn then return end
-        local w = C.worldId()
-        if not w then return end
-        lastPawn = p:GetAddress()
-        world = w
-        data = C.loadData(MOD, world)
-        box = nil
-        boxes.clear()
-        baseSpeed = nil
-        C.later(3.0, function()
-            applySpeed()
-            showHud()
-        end)
+C.loop(1000, function()
+    local p = C.pawn()
+    if not p or p:GetAddress() == lastPawn then return end
+    local w = C.worldId()
+    if not w then return end
+    lastPawn = p:GetAddress()
+    world = w
+    data = C.loadData(MOD, world)
+    box = nil
+    boxes.clear()
+    baseSpeed = nil
+    C.later(3.0, function()
+        applySpeed()
+        showHud()
     end)
-    return false
-end)
+end, "tick")
 
 C.onChat(function(sender, body, id)
     if not CFG.share or id == -1 or sender == C.myName() then return end

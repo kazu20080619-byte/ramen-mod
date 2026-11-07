@@ -1,8 +1,14 @@
 -- RamenYoi: カウンターでビールを飲むと酔っ払う。飲みすぎると倒れてリスポーン。
 -- 醤油一気飲み（RamenEmotes のエモート）でも倒れる。
 
--- 調整できる数（酔いは 0〜100）
-local CFG = {
+local C = require("ramen_common")
+
+-- 調整できる数（酔いは 0〜100）。Mods/RamenYoi/config.lua で変えられる
+local CFG = C.config("RamenYoi", {
+    beer          = true,  -- カウンターでビールを飲むと酔う
+    shoyu         = true,  -- 醤油一気飲み（エモート）で倒れる
+    passOutOn     = true,  -- 飲みすぎると倒れる（false なら、酔うだけで倒れない）
+    strength      = 1.0,   -- ゆれ・かたむき・ふらつきの強さ（0.5 で半分、2 で 2 倍、0 でゆれない）
     beerSip       = 25,    -- ビールを 1 口飲むと増える酔い
     noodleSober   = 3,     -- 麺を食べると減る酔い
     soupSober     = 5,     -- スープや水を飲むと減る酔い
@@ -17,7 +23,7 @@ local CFG = {
     stagger       = 2.5,   -- 酔い 100 のときの、歩くときの横ずれ（1 回あたり）
     shoyuDelay    = 2.0,   -- 醤油を飲んでから倒れるまでの秒
     respawnDark   = 3.0,   -- 倒れてから復活するまでの暗い時間（秒）
-}
+})
 
 local TICK = 0.05
 local AM = "/Game/Men/Animation/AnimationMontage/Player/"
@@ -82,8 +88,20 @@ local function fade(pc, from, to, sec, hold)
     end)
 end
 
+-- 待つ・くり返すは ゲームのスレッドで。UE4SS の LoopAsync / ExecuteWithDelay は Lua を別のスレッドで
+-- 動かすので、フックなどと同時に動くと Lua のメモリがこわれてゲームが落ちる（古い UE4SS なら前のやり方）
+local GAME_THREAD = type(LoopInGameThreadWithDelay) == "function"
+    and type(ExecuteInGameThreadWithDelay) == "function"
+
 local function later(sec, fn)
-    ExecuteWithDelay(math.floor(sec * 1000), function() ExecuteInGameThread(fn) end)
+    local ms = math.max(1, math.floor(sec * 1000))
+    if GAME_THREAD then ExecuteInGameThreadWithDelay(ms, fn)
+    else ExecuteWithDelay(ms, function() ExecuteInGameThread(fn) end) end
+end
+
+local function gameLoop(ms, fn)
+    if GAME_THREAD then LoopInGameThreadWithDelay(ms, fn)
+    else LoopAsync(ms, function() ExecuteInGameThread(fn) return false end) end
 end
 
 -- カメラシェイクの形を「酔い」に作りかえる（ずっと続く・ゆっくり・かたむき多め）
@@ -155,6 +173,7 @@ local function watchSeat(p)
     if active and not prev.sideActive then
         local a = side.Actor
         if a and a:IsValid() and isA(a, "BeerMug") then
+            if not CFG.beer then prev.sideActive = active return seated end
             yoi = yoi + CFG.beerSip
             chat(string.format("ビールを飲んだ（酔い %d / %d）", math.floor(yoi), CFG.passOut))
         elseif a and a:IsValid() then
@@ -175,7 +194,7 @@ end
 
 -- ゆれ・ふらつき
 local function drunkEffects(pc, p, seated)
-    local k = math.min(yoi, CFG.passOut) / CFG.passOut
+    local k = math.min(yoi, CFG.passOut) / CFG.passOut * math.max(0, CFG.strength)
     setShake(pc, k)
 
     -- 向きのずれ（前の回のずれを戻してから新しいずれを足すので、ずっとずれていかない）
@@ -218,27 +237,23 @@ local function tick()
     end
     if dying then return end
     local seated = watchSeat(p)
-    if yoi >= CFG.passOut and not seated then die("飲みすぎて倒れた！") return end
+    if yoi >= CFG.passOut then
+        if not CFG.passOutOn then yoi = CFG.passOut  -- 倒れない設定: 酔いはここで止まる
+        elseif not seated then die("飲みすぎて倒れた！") return end
+    end
     yoi = math.max(0, yoi - CFG.decayPerSec * TICK)
     if yoi > 0 or applied.yaw ~= 0 or applied.pitch ~= 0 or shake then drunkEffects(pc, p, seated) end
 end
 
-local busy = false
 local errors = 0
-LoopAsync(math.floor(TICK * 1000), function()
-    if busy then return false end
-    busy = true
-    ExecuteInGameThread(function()
-        local ok, err = pcall(tick)
-        if not ok and errors < 5 then errors = errors + 1; say("error: " .. tostring(err)) end
-        busy = false
-    end)
-    return false
+gameLoop(math.floor(TICK * 1000), function()
+    local ok, err = pcall(tick)
+    if not ok and errors < 5 then errors = errors + 1; say("error: " .. tostring(err)) end
 end)
 
 -- 醤油一気飲み（エモート）→ 少しして倒れる
 RegisterHook("/Script/RealRamenSimulator.MenEmoteComponent:RequestPlayEmote", function(self, tagParam)
-    if tagParam:get().TagName:ToString() ~= "Men.Emote.Mod.ShoyuChug" then return end
+    if not CFG.shoyu or tagParam:get().TagName:ToString() ~= "Men.Emote.Mod.ShoyuChug" then return end
     later(CFG.shoyuDelay, function() die("醤油を一気飲みして倒れた！") end)
 end)
 

@@ -1,0 +1,12 @@
+{
+  "id": "ramen-window",
+  "name": "ラーメンMOD: ウィンドウの大きさ",
+  "app_id": "4968640",
+  "game_builds": [],
+  "ue4ss": ">=3.0.1",
+  "dependencies": [],
+  "multiplayer": "Client Only",
+  "assets": [],
+  "source": "https://github.com/kazu20080619-byte/ramen-mod",
+  "description": "F11 でフルスクリーン → ウィンドウ 1280x720 → 1600x900 と切りかえ。Alt+Enter でフルスクリーン ⇄ ウィンドウ。コンソールの ramenwindow。自分の画面だけが変わる。"
+}

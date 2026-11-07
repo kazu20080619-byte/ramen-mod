@@ -141,13 +141,13 @@ end
 -------------------------------------------------------------------------------
 local k = Key[CFG.key]
 if k then
-    RegisterKeyBind(k, function() C.now(cycle, "cycle") end)
+    C.key(k, nil, cycle, "cycle")
 else
     print("[" .. MOD .. "] unknown key: " .. tostring(CFG.key) .. "\n")
 end
 
 if CFG.altEnter then
-    RegisterKeyBind(Key.RETURN, { ModifierKey.ALT }, function() C.now(toggle, "toggle") end)
+    C.key(Key.RETURN, { ModifierKey.ALT }, toggle, "toggle")
 end
 
 -- パッドの見回りはゲームのスレッドで動くので、そのまま呼ぶ

@@ -21,6 +21,18 @@ namespace RamenLauncher
         public string Desc;     // 説明
         public bool Fun;        // おもしろ系か（false はバランス崩壊系）
         public bool Always;     // どのパックにも入れる便利系か
+        // ここから下は ramen-mod.json / ramen-launcher.json から（Catalog.cs）
+        public string Id, Version = "", Multiplayer = "Unknown", Ue4ss = "", AppId = "", Source = "";
+        public string Mark = "・", Who = "", Pack = "";
+        public string SourceDir;            // 適用するときのコピー元（payload\mods\X か library\<id>\X）
+        public bool Builtin;                // ラーメンMOD（payload）か、自分で足した MOD（library）か
+        public List<ModDep> Deps = new List<ModDep>();
+        public List<ModDep> Recommends = new List<ModDep>();
+        public List<ModKey> Keys = new List<ModKey>();
+        public List<string> Assets = new List<string>();
+        public List<string> Conflicts = new List<string>();
+        public List<string> Problems = new List<string>();
+        public ConfigField[] Config;        // 「MOD の設定」に出す項目（なければ出さない）
         public ModInfo(string folder, string name, string desc, bool fun, bool always = false)
         {
             Folder = folder; Name = name; Desc = desc; Fun = fun; Always = always;
@@ -44,13 +56,8 @@ namespace RamenLauncher
         public const string Win64Rel = @"RealRamenSimulator\Binaries\Win64";
         public const string OffSuffix = ".ramen-off";
 
-        public static readonly ModInfo[] Mods = new ModInfo[] {
-            new ModInfo("RamenEmotes", "新しいエモート", "テーブル拭き・手裏剣・うんこ・醤油一気飲み など 11 個。ガチャガチャがあると、ガチャで出るまで使えない", true),
-            new ModInfo("RamenYoi", "酔っ払い", "カウンターでビールを飲むと酔っ払う。飲みすぎ・醤油一気飲みで倒れて目が覚める", true),
-            new ModInfo("RamenGacha", "ガチャガチャ", "パソコンで買って置く。台の前で E のメニューから 1 回・10 連。具材・ラーメンの雨・エモート", true),
-            new ModInfo("RamenOmikuji", "おみくじ箱", "パソコンで買って置く。大吉〜大凶で、その日いっぱい効果が続く", true),
-            new ModInfo("RamenBenri", "便利機能（バランス崩壊）", "F1 でべんりメニュー。お金・ゲームの速さ・歩くはやさ・飛ぶ・ワープ・お店のレベル", false),
-            new ModInfo("RamenWindow", "ウィンドウの大きさ", "F11 でフルスクリーン ⇄ 小さいウィンドウを切りかえ", true, true),        };
+        // MOD の一覧は、各 MOD の ramen-mod.json / ramen-launcher.json から作る（Catalog.cs）
+        public static ModInfo[] Mods { get { return Catalog.Mods; } }
 
         static readonly Dictionary<string, string> EmoteNames = new Dictionary<string, string> {
             {"WipeTable","テーブル拭き"},{"Mopping","モップがけ"},{"WashHands","手洗い"},{"PeelEgg","ゆで卵むき"},
@@ -121,6 +128,18 @@ namespace RamenLauncher
             return Process.GetProcessesByName(Path.GetFileNameWithoutExtension(GameExe)).Length > 0;
         }
 
+        // その場所（Win64）のゲームが起動しているか。場所が調べられないときは「起動している」とみなす
+        public static bool GameRunning(string w)
+        {
+            var exe = Path.GetFullPath(Path.Combine(w, GameExe));
+            foreach (var p in Process.GetProcessesByName(Path.GetFileNameWithoutExtension(GameExe)))
+            {
+                try { if (string.Equals(Path.GetFullPath(p.MainModule.FileName), exe, StringComparison.OrdinalIgnoreCase)) return true; }
+                catch { return true; }
+            }
+            return false;
+        }
+
         // ------------------------------------------------------------------
         // いまの状態
         // ------------------------------------------------------------------
@@ -167,7 +186,7 @@ namespace RamenLauncher
         // ------------------------------------------------------------------
         public static string Apply(string w, ICollection<string> selected, bool replaceUe4ss, Action<string> log)
         {
-            if (GameRunning()) throw new InvalidOperationException("ゲームが起動しています。閉じてからやってください。");
+            if (GameRunning(w)) throw new InvalidOperationException("ゲームが起動しています。閉じてからやってください。");
             var stamp = DateTime.Now.ToString("yyyyMMdd_HHmmss");
             var backup = Path.Combine(w, @"ramenmod_backup\launcher_" + stamp);
             Directory.CreateDirectory(backup);
@@ -202,13 +221,30 @@ namespace RamenLauncher
             foreach (var m in Mods)
             {
                 if (!selected.Contains(m.Folder)) continue;
-                var src = Path.Combine(PayloadDir, @"mods\" + m.Folder);
-                if (!Directory.Exists(src)) throw new DirectoryNotFoundException("payload に " + m.Folder + " がありません");
+                var src = m.SourceDir;
+                if (!Directory.Exists(src)) throw new DirectoryNotFoundException(m.Builtin ? "payload に " + m.Folder + " がありません" : m.Name + " の元のファイルがありません: " + src);
                 var dst = Path.Combine(mods, m.Folder);
                 CopyDir(src, dst, true, new[] { "config.lua" });
                 if (!File.Exists(Path.Combine(dst, "config.lua")) && File.Exists(Path.Combine(src, "config.lua")))
                     File.Copy(Path.Combine(src, "config.lua"), Path.Combine(dst, "config.lua"));
                 log(m.Name + " を入れました");
+            }
+
+            // 2b. エモートのタグ（RealRamenSimulator\Config\Tags\RamenMod.ini）。エモートを使うときだけ置く
+            var tagsSrc = Path.Combine(PayloadDir, @"gameconfig\Tags\" + TagsIni);
+            var tagsDst = TagsPath(w);
+            if (selected.Contains("RamenEmotes") && File.Exists(tagsSrc))
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(tagsDst));
+                if (File.Exists(tagsDst)) File.Copy(tagsDst, Path.Combine(backup, TagsIni), true);
+                File.Copy(tagsSrc, tagsDst, true);
+                log("エモートのタグを入れました（" + tagsDst + "）");
+            }
+            else if (!selected.Contains("RamenEmotes") && File.Exists(tagsDst))
+            {
+                File.Copy(tagsDst, Path.Combine(backup, TagsIni), true);
+                File.Delete(tagsDst);
+                log("エモートのタグを外しました");
             }
 
             // 3. mods.txt: ラーメンの行だけ書きかえる（選ばなかったものは 0 にして、フォルダと記録は残す）
@@ -225,10 +261,31 @@ namespace RamenLauncher
             return backup;
         }
 
+        // 足した MOD をゲームから外す: フォルダはバックアップへ移し、mods.txt の行を消す
+        public static void RemoveFromGame(string w, string folder, Action<string> log)
+        {
+            var dir = Path.Combine(ModsDir(w), folder);
+            var txt = Path.Combine(ModsDir(w), "mods.txt");
+            if (!Directory.Exists(dir) && !File.Exists(txt)) return;
+            if (GameRunning(w)) throw new InvalidOperationException("ゲームが起動しています。閉じてからやってください。");
+            if (Directory.Exists(dir))
+            {
+                var dest = Path.Combine(w, @"ramenmod_backup\removed_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
+                Directory.CreateDirectory(dest);
+                Directory.Move(dir, Path.Combine(dest, folder));
+                log(folder + " をゲームから外しました（" + dest + " に移しました）");
+            }
+            if (File.Exists(txt))
+            {
+                var lines = File.ReadAllLines(txt, Encoding.UTF8).Where(l => l.Split(':')[0].Trim() != folder).ToList();
+                File.WriteAllLines(txt, lines, new UTF8Encoding(false));
+            }
+        }
+
         // バニラ起動用: dwmapi.dll の名前を変えて、UE4SS を読みこまないようにする
         public static void SetVanilla(string w, bool vanilla)
         {
-            if (GameRunning()) throw new InvalidOperationException("ゲームが起動しています。閉じてからやってください。");
+            if (GameRunning(w)) throw new InvalidOperationException("ゲームが起動しています。閉じてからやってください。");
             var on = Path.Combine(w, "dwmapi.dll");
             var off = on + OffSuffix;
             if (vanilla && File.Exists(on)) { if (File.Exists(off)) File.Delete(off); File.Move(on, off); }
@@ -238,7 +295,7 @@ namespace RamenLauncher
         // 全部外す（消さずにバックアップへ移す）
         public static string Uninstall(string w)
         {
-            if (GameRunning()) throw new InvalidOperationException("ゲームが起動しています。閉じてからやってください。");
+            if (GameRunning(w)) throw new InvalidOperationException("ゲームが起動しています。閉じてからやってください。");
             var dest = Path.Combine(w, @"ramenmod_backup\removed_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
             Directory.CreateDirectory(dest);
             foreach (var f in new[] { "dwmapi.dll", "dwmapi.dll" + OffSuffix })
@@ -248,7 +305,16 @@ namespace RamenLauncher
             }
             var ue = Path.Combine(w, "ue4ss");
             if (Directory.Exists(ue)) Directory.Move(ue, Path.Combine(dest, "ue4ss"));
+            var tags = TagsPath(w);
+            if (File.Exists(tags)) File.Move(tags, Path.Combine(dest, TagsIni));
             return dest;
+        }
+
+        // エモートのタグを置く場所: Win64 の 2 つ上（RealRamenSimulator）\Config\Tags
+        public const string TagsIni = "RamenMod.ini";
+        public static string TagsPath(string w)
+        {
+            return Path.GetFullPath(Path.Combine(w, @"..\..\Config\Tags\" + TagsIni));
         }
 
         public static void LaunchGame()
@@ -449,12 +515,15 @@ namespace RamenLauncher
                 s.CopyTo(f);
         }
 
-        // ramen-mods.zip を一時フォルダにダウンロードして、その場所を返す
-        public static string DownloadMods(ReleaseInfo r)
+        // ramen-mods.zip をダウンロードする一時フォルダの場所（まだ作らない）
+        public static string TempZipPath()
         {
-            var zip = Path.Combine(Path.GetTempPath(), "RamenLauncher_update_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"), ModsAsset);
+            return Path.Combine(Path.GetTempPath(), "RamenLauncher_update_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"), ModsAsset);
+        }
+
+        public static void DownloadMods(ReleaseInfo r, string zip)
+        {
             Download(r.ModsZipUrl, zip);
-            return zip;
         }
 
         public static void DeleteTemp(string zip)
@@ -494,6 +563,7 @@ namespace RamenLauncher
                 throw;
             }
             log("MOD の元（payload）を v" + ver + " にしました");
+            Catalog.Reload();
             return ver;
         }
 

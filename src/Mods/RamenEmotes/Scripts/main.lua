@@ -19,7 +19,12 @@ local EMOTES = {
 
 -- RamenGacha があるときは、ガチャで出たエモートだけ使える（「ramenemote sync」で教えてもらう）。
 -- 使えないエモートは、解放レベルを LOCKED_LEVEL にしておく。
+-- config.lua の gachaOnly = false なら、ガチャがあっても最初から全部使える。
 local LOCKED_LEVEL = 999
+local C = require("ramen_common")
+local CFG = C.config("RamenEmotes", {
+    gachaOnly = true,   -- 新しいエモートは、ガチャで出たものだけ使える
+})
 
 local DEBUG = false -- true にすると、ログにくわしく出す
 local TAG_PREFIX = "Men.Emote.Mod."
@@ -42,6 +47,25 @@ local function montage(name)
     return load(AM .. name .. "." .. name)
 end
 
+-- ロッカー（カスタマイズのエモート画面）は「動き（ThirdPersonMontage）」が空のエモートを候補から外す。
+-- Lua で動きを直接入れるとゲームが落ちるので、ゲームのエモートの設定を そのまま写す（値の写しは落ちない）。
+-- 実際の動きは、下の RequestPlayEmote のフックで自分の動きに入れかえる。
+local function copyMontage(entries, dst, iconName)
+    local src
+    for i = 1, #entries do
+        local t = entries[i].EmoteTag.TagName:ToString()
+        if t:find(iconName, 1, true) and not t:find("%.Mod%.") then src = entries[i] break end
+    end
+    if not src then
+        for i = 1, #entries do
+            if not entries[i].EmoteTag.TagName:ToString():find("%.Mod%.") then src = entries[i] break end
+        end
+    end
+    if not src then return end
+    pcall(function() dst.ThirdPersonMontage = src.ThirdPersonMontage end)
+    pcall(function() dst.FirstPersonMontage = src.FirstPersonMontage end)
+end
+
 local function addEntries(ca)
     local entries = ca.Entries
     local have = {}
@@ -60,21 +84,40 @@ local function addEntries(ca)
                 PlayRate = 1.0,
                 BlendOutTimeSeconds = 0.15,
             }
+            copyMontage(entries, entries[#entries], e.icon)
         end
     end
     print(string.format("[RamenEmotes] catalog now has %d emotes\n", #entries))
 end
 
+-- ゲームのスレッドでくり返す。fn が true を返したら止まる。
+-- UE4SS の LoopAsync は Lua を別のスレッドで動かすので、フックなどと同時に動くと
+-- Lua のメモリがこわれてゲームが落ちる。古い UE4SS で …InGameThread… がないときだけ前のやり方
+local GAME_THREAD = type(LoopInGameThreadWithDelay) == "function" and type(CancelDelayedAction) == "function"
+local function gameLoop(ms, fn)
+    local stopped, handle = false, nil
+    local function step()
+        if stopped then return end
+        local ok, r = pcall(fn)
+        if not ok then print("[RamenEmotes] error: " .. tostring(r) .. "\n")
+        elseif r then stopped = true; if handle then CancelDelayedAction(handle) end end
+    end
+    if GAME_THREAD then
+        handle = LoopInGameThreadWithDelay(ms, step)
+    else
+        LoopAsync(ms, function() if stopped then return true end ExecuteInGameThread(step) return false end)
+    end
+end
+
 -- カタログが読み込まれるまで待って足す
-LoopAsync(2000, function()
+gameLoop(2000, function()
     if added then return true end
     local ca = FindFirstOf("MenEmoteCatalogDataAsset")
     if ca and ca:IsValid() then
         added = true
-        ExecuteInGameThread(function() addEntries(ca) end)
+        addEntries(ca)
         return true
     end
-    return false
 end)
 
 -- いま流している新しいエモート（持ち主ごと）
@@ -144,36 +187,34 @@ end)
 
 -- 動きが終わったら、もう一度流すか、エモートを終わらせる。
 -- ゲームは動きが終わると自分でエモートの印を消すので、最後まで流れたかは経った時間で見る。
-LoopAsync(150, function()
-    if next(playing) == nil then return false end
-    ExecuteInGameThread(function()
-        for key, p in pairs(playing) do
-            local ok, tag = pcall(function() return p.comp.ReplicatedPlayback.EmoteTag.TagName:ToString() end)
-            p.elapsed = p.elapsed + 0.15
-            local finished = p.elapsed >= p.length
-            if not ok then
-                playing[key] = nil
-            elseif tag ~= p.tag and tag ~= "None" then
-                playing[key] = nil  -- ほかのエモートに変わった
-            elseif not p.anim:Montage_IsPlaying(p.montage) or tag == "None" then
-                if DEBUG then print(string.format("[RamenEmotes] end: tag=%s playing=%s elapsed=%.2f left=%d\n", tag, tostring(p.anim:Montage_IsPlaying(p.montage)), p.elapsed, p.left)) end
-                playing[key] = nil
-                if finished and p.left > 0 then
-                    local ok2, err = pcall(startMod, p.comp, p.owner, p.tag, p.e, p.left - 1)
-                    if not ok2 then print("[RamenEmotes] error: " .. tostring(err) .. "\n") end
-                elseif tag == p.tag then
-                    p.comp:RequestStopEmote()
-                end
+gameLoop(150, function()
+    if next(playing) == nil then return end
+    for key, p in pairs(playing) do
+        local ok, tag = pcall(function() return p.comp.ReplicatedPlayback.EmoteTag.TagName:ToString() end)
+        p.elapsed = p.elapsed + 0.15
+        local finished = p.elapsed >= p.length
+        if not ok then
+            playing[key] = nil
+        elseif tag ~= p.tag and tag ~= "None" then
+            playing[key] = nil  -- ほかのエモートに変わった
+        elseif not p.anim:Montage_IsPlaying(p.montage) or tag == "None" then
+            if DEBUG then print(string.format("[RamenEmotes] end: tag=%s playing=%s elapsed=%.2f left=%d\n", tag, tostring(p.anim:Montage_IsPlaying(p.montage)), p.elapsed, p.left)) end
+            playing[key] = nil
+            if finished and p.left > 0 then
+                local ok2, err = pcall(startMod, p.comp, p.owner, p.tag, p.e, p.left - 1)
+                if not ok2 then print("[RamenEmotes] error: " .. tostring(err) .. "\n") end
+            elseif tag == p.tag then
+                p.comp:RequestStopEmote()
             end
         end
-    end)
-    return false
+    end
 end)
 
 -- コンソール「ramenemote sync タグ,タグ,…」: 並べたエモートだけ使えるようにする（「-」なら全部しまう）。
 -- 「ramenemote all」で全部使えるようにもどす。
 RegisterConsoleCommandHandler("ramenemote", function(full, params, ar)
     local cmd, arg = params[1], params[2]
+    if cmd == "sync" and not CFG.gachaOnly then cmd = "all" end  -- 全部使える設定
     ExecuteInGameThread(function()
         local ca = FindFirstOf("MenEmoteCatalogDataAsset")
         if not ca or not ca:IsValid() then return end

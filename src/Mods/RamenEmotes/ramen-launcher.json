@@ -1,0 +1,31 @@
+{
+  "format": 1,
+  "short": "新しいエモート",
+  "mark": "舞",
+  "who": "みんな",
+  "pack": "fun",
+  "summary": "テーブル拭き・手裏剣・醤油一気飲みなど 11 個。",
+  "keys": [],
+  "recommends": [
+    {
+      "id": "ramen-yoi",
+      "why": "醤油一気飲みで倒れます"
+    }
+  ],
+  "config": {
+    "file": "config.lua",
+    "groups": [
+      {
+        "title": "エモート",
+        "fields": [
+          {
+            "name": "gachaOnly",
+            "kind": "bool",
+            "label": "新しいエモートはガチャで出たものだけ",
+            "default": "true"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ラーメンMODランチャー</title>
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="shell">
+
+<nav class="side" aria-label="メニュー">
+  <div class="brand">
+    <div class="brand-mark">
+      <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#FFF4E8" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M3 11h18a9 9 0 0 1-18 0Z"/><path d="M8 3v8M12 2v9M16 3v8"/></svg>
+    </div>
+    <div class="brand-text">
+      <span class="brand-name">ラーメンMOD</span>
+      <span class="muted small" id="brand-ver">ランチャー</span>
+    </div>
+  </div>
+  <div class="nav-list">
+    <a href="#home" data-screen="home"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11 12 4l9 7"/><path d="M5 10v10h14V10"/></svg>ホーム</a>
+    <a href="#mods" data-screen="mods"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="3" width="8" height="8" rx="2"/><rect x="13" y="3" width="8" height="8" rx="2"/><rect x="3" y="13" width="8" height="8" rx="2"/><rect x="13" y="13" width="8" height="8" rx="2"/></svg>MOD</a>
+    <a href="#settings" data-screen="settings"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>MOD の設定</a>
+    <a href="#records" data-screen="records"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M9 12h7M9 16h5"/></svg>記録</a>
+    <a href="#diag" data-screen="diag"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1 7 17M17 7l2.1-2.1"/></svg>診断</a>
+  </div>
+  <button type="button" class="game-card" id="game-card" data-go="diag">
+    <span class="muted small">ゲームの場所</span>
+    <span class="game-path" id="game-path">さがしています…</span>
+    <span class="game-found" id="game-found"></span>
+  </button>
+</nav>
+
+<main>
+
+<!-- ホーム -->
+<section class="screen" id="screen-home" aria-label="ホーム">
+  <div class="banner" id="update-banner" hidden>
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#E8B04A" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5"/><path d="M4 19h16"/></svg>
+    <div class="banner-text">
+      <strong id="update-title">新しい版があります</strong>
+      <span class="muted" id="update-sub">更新すると、ゲームの MOD も新しくなります（記録と設定は残ります）</span>
+    </div>
+    <button type="button" class="btn gold" id="update-go">更新する</button>
+    <button type="button" class="btn ghost-gold" id="update-later">あとで</button>
+  </div>
+
+  <div class="warn" id="running-warn" hidden>ゲームが起動中です。MOD を変えるのは、ゲームを閉じてからにしてね。</div>
+
+  <section class="hero" aria-labelledby="hero-title">
+    <div class="hero-text">
+      <span class="eyebrow">JAPANESE RAMEN SIMULATOR</span>
+      <h1 id="hero-title" class="display">今日も、<br>お店を開けよう。</h1>
+      <p class="muted lead" id="hero-sub">MOD が入っています。</p>
+      <div class="row">
+        <button type="button" class="btn primary big" id="play-mods"><svg width="20" height="20" viewBox="0 0 24 24" fill="#FFF6EE" aria-hidden="true"><path d="M7 4v16l13-8z"/></svg>MOD ありで遊ぶ</button>
+        <button type="button" class="btn ghost big2" id="play-vanilla">MOD なしで遊ぶ</button>
+      </div>
+    </div>
+    <div class="lantern" aria-hidden="true">
+      <div class="lantern-body"></div>
+      <div class="lantern-line top"></div>
+      <div class="lantern-line bottom"></div>
+      <div class="lantern-kanji">麺</div>
+      <div class="lantern-foot"></div>
+    </div>
+  </section>
+
+  <div class="grid3">
+    <div class="card stat">
+      <span class="muted small">MOD</span>
+      <span class="stat-value" id="stat-mods">-</span>
+      <a href="#mods" data-go="mods">選びなおす</a>
+    </div>
+    <div class="card stat">
+      <span class="muted small">ガチャ</span>
+      <span class="stat-value" id="stat-gacha">-</span>
+      <a href="#records" data-go="records">記録を見る</a>
+    </div>
+    <div class="card stat">
+      <span class="muted small">今日の運勢</span>
+      <span class="stat-value gold-text" id="stat-fortune">-</span>
+      <span class="muted small" id="stat-effect"></span>
+    </div>
+  </div>
+</section>
+
+<!-- MOD -->
+<section class="screen" id="screen-mods" aria-label="MOD" hidden>
+  <div class="head">
+    <div class="head-text">
+      <h1 class="title">MOD</h1>
+      <p class="muted">使う MOD を選んで「ゲームに入れる」。ゲームが閉じているときだけ変えられます。</p>
+    </div>
+    <div class="chips" role="group" aria-label="まとめて選ぶ" id="mod-presets"></div>
+  </div>
+  <div class="checks" id="mod-checks" aria-live="polite"></div>
+  <div class="grid2" id="mod-cards"></div>
+  <button type="button" class="dropzone" id="mod-import">
+    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 15V3M7 8l5-5 5 5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/></svg>
+    <span><strong>MOD を足す</strong>　zip をここにドロップ、または押して選ぶ</span>
+    <span class="muted small">UE4SS の Lua MOD（&lt;名前&gt;/Scripts/main.lua）。友だちのランチャーと同じ ramen-mod.json に対応</span>
+  </button>
+  <div class="row">
+    <button type="button" class="btn primary" id="mods-apply">ゲームに入れる</button>
+    <button type="button" class="btn ghost" id="mods-none">MOD を全部はずす</button>
+    <span class="muted small">ガチャの記録と設定は消えません</span>
+  </div>
+</section>
+
+<!-- MOD の設定 -->
+<section class="screen" id="screen-settings" aria-label="MOD の設定" hidden>
+  <div class="head-text">
+    <h1 class="title">MOD の設定</h1>
+    <p class="muted">変えたら「保存」。ゲームを起動しなおすと反映されます。</p>
+  </div>
+  <div class="tabs" role="tablist" aria-label="MOD" id="cfg-tabs"></div>
+  <div class="grid2" id="cfg-sections"></div>
+  <div class="row">
+    <button type="button" class="btn primary" id="cfg-save">保存</button>
+    <button type="button" class="btn ghost" id="cfg-reset">はじめの設定にもどす</button>
+    <span class="muted small" id="cfg-from"></span>
+  </div>
+</section>
+
+<!-- 記録 -->
+<section class="screen" id="screen-records" aria-label="記録" hidden>
+  <div class="head">
+    <div class="head-text">
+      <h1 class="title">記録</h1>
+      <p class="muted">ワールドごとの、ガチャ・エモート・運勢。直すときはゲームを閉じてね。</p>
+    </div>
+    <label class="field-col">ワールド
+      <select id="rec-world"></select>
+    </label>
+  </div>
+  <div id="rec-empty" class="card muted" hidden>まだ記録がありません。ゲームでガチャやおみくじを使うと、ここに出ます。</div>
+  <div id="rec-body">
+    <div class="grid3">
+      <div class="card stat">
+        <span class="muted small">ガチャを回した回数</span>
+        <span class="big-num" id="rec-pulls">0</span>
+      </div>
+      <div class="card stat">
+        <span class="muted small">天井まで</span>
+        <span class="big-num gold-text" id="rec-left">0</span>
+        <div class="bar" role="progressbar" aria-label="天井まで" aria-valuemin="0" id="rec-bar"><div id="rec-bar-fill"></div></div>
+      </div>
+      <div class="card stat">
+        <span class="muted small" id="rec-fortune-label">今日の運勢</span>
+        <span class="big-num gold-text" id="rec-fortune">-</span>
+        <span class="muted small" id="rec-effect"></span>
+      </div>
+    </div>
+    <section class="card" aria-labelledby="e-title">
+      <div class="between">
+        <h2 id="e-title" class="h2">手に入れたエモート</h2>
+        <span class="muted small">チェックで手に入れたことにできます</span>
+      </div>
+      <div class="grid4" id="rec-emotes"></div>
+    </section>
+    <details class="card">
+      <summary>数字と運勢を直す</summary>
+      <div class="grid2 tight">
+        <label class="field">まわした回数<input type="number" min="0" id="rec-pulls-in"></label>
+        <label class="field">天井のカウント<input type="number" min="0" id="rec-pity-in"></label>
+        <label class="field">今日の運勢<select id="rec-fortune-in"></select></label>
+        <label class="field">効果<select id="rec-effect-in"></select></label>
+        <label class="field">何日目の運勢か<input type="number" min="0" id="rec-day-in"></label>
+      </div>
+    </details>
+    <div class="row">
+      <button type="button" class="btn primary" id="rec-save">保存</button>
+      <span class="muted small">前の記録は data/backup に残ります</span>
+    </div>
+  </div>
+</section>
+
+<!-- 診断 -->
+<section class="screen" id="screen-diag" aria-label="診断" hidden>
+  <div class="head-text">
+    <h1 class="title">診断</h1>
+    <p class="muted">ゲームの場所・バニラ（MOD なし）・全部はずす・更新・ログ。</p>
+  </div>
+  <div class="grid2">
+    <section class="card">
+      <h2 class="h2">ゲーム</h2>
+      <p class="path" id="diag-path"></p>
+      <p class="muted small" id="diag-state"></p>
+      <div class="row">
+        <button type="button" class="btn ghost" id="diag-setpath">ゲームの場所を変える</button>
+        <button type="button" class="btn ghost" data-folder="game">ゲームのフォルダを開く</button>
+        <button type="button" class="btn ghost" data-folder="backup">バックアップを開く</button>
+      </div>
+    </section>
+    <section class="card">
+      <h2 class="h2">MOD</h2>
+      <label class="field">バニラ（MOD を止めておく）<input type="checkbox" id="diag-vanilla"></label>
+      <div class="row">
+        <button type="button" class="btn ghost" id="diag-reinstall">UE4SS も入れなおす</button>
+        <button type="button" class="btn danger" id="diag-uninstall">MOD を全部外す</button>
+      </div>
+      <p class="muted small">外したものは消さずに ramenmod_backup に移します。</p>
+    </section>
+    <section class="card">
+      <h2 class="h2">更新</h2>
+      <p class="muted small" id="diag-versions"></p>
+      <div class="row">
+        <button type="button" class="btn ghost" id="diag-update">更新を確認</button>
+        <button type="button" class="btn ghost" data-folder="launcher">ランチャーのフォルダ</button>
+      </div>
+    </section>
+    <section class="card">
+      <h2 class="h2">ランチャーのログ</h2>
+      <pre class="log" id="log"></pre>
+    </section>
+  </div>
+  <section class="card">
+    <div class="between">
+      <h2 class="h2">UE4SS のログ</h2>
+      <button type="button" class="btn ghost small-btn" id="diag-reload">読みなおす</button>
+    </div>
+    <pre class="log tall" id="diag-text"></pre>
+  </section>
+</section>
+
+</main>
+</div>
+
+<div class="drop-overlay" id="drop-overlay" hidden><div>MOD の zip をはなすと、足します</div></div>
+<div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
+<script src="app.js"></script>
+</body>
+</html>

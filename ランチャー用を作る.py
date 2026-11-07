@@ -26,7 +26,7 @@ INDEX = OUT / "ramen-mods-index.json"  # 友だちのランチャーが読む一
 MODS = {
     "RamenEmotes": {
         "id": "ramen-emotes", "name": "ラーメンMOD: 新しいエモート", "multiplayer": "Unknown",
-        "description": "テーブル拭き・手裏剣・うんこ・醤油一気飲み など 11 個のエモート。ガチャガチャ（ramen-gacha）を入れると、ガチャで出るまで使えない。",
+        "description": "テーブル拭き・手裏剣・うんこ・醤油一気飲み など 11 個のエモート。ガチャガチャ（ramen-gacha）を入れると、ガチャで出るまで使えない。ロッカーで付けるには、ゲームの RealRamenSimulator/Config/Tags/ に RamenMod.ini（リリースの RamenMod-tags.ini）も置く。",
     },
     "RamenYoi": {
         "id": "ramen-yoi", "name": "ラーメンMOD: 酔っ払い", "multiplayer": "Unknown",
@@ -50,13 +50,19 @@ MODS = {
     },}
 
 # 共通部品（ramen_common.lua）を Scripts に入れておく MOD
-NEEDS_COMMON = {"RamenGacha", "RamenOmikuji", "RamenBenri", "RamenWindow"}
+NEEDS_COMMON = {"RamenGacha", "RamenOmikuji", "RamenBenri", "RamenWindow", "RamenYoi", "RamenEmotes"}
 COMMON = HERE / "src" / "ramen_common.lua"
 
 ID_RE = re.compile(r"^[a-z0-9][a-zA-Z0-9._-]{0,79}$")
 
 
-def metadata(info):
+def metadata(info, mod=None):
+    # src\Mods\<MOD>\ramen-mod.json があれば、それを元にする（版だけここで入れる）
+    own = SRC / mod / "ramen-mod.json" if mod else None
+    if own and own.exists():
+        meta = json.loads(own.read_text(encoding="utf-8"))
+        meta["version"] = VERSION
+        return meta
     return {
         "id": info["id"],
         "name": info["name"],
@@ -108,11 +114,13 @@ def build(mod, info):
     src = SRC / mod
     zpath = OUT / f"{info['id']}-{VERSION}.zip"
     with zipfile.ZipFile(zpath, "w", zipfile.ZIP_DEFLATED) as z:
-        z.writestr("ramen-mod.json", json.dumps(metadata(info), ensure_ascii=False, indent=2))
+        z.writestr("ramen-mod.json", json.dumps(metadata(info, mod), ensure_ascii=False, indent=2))
         for f in sorted(src.rglob("*")):
             rel = f.relative_to(src)
             if f.is_dir() or rel.parts[0] == "data":
                 continue  # ワールドごとの記録・書き出した絵は入れない
+            if rel.as_posix() == "ramen-mod.json":
+                continue  # ramen-mod.json は zip の直下に 1 つだけ（友だちのランチャーの決まり）
             z.write(f, f"{mod}/{rel.as_posix()}")
         # src\Mods の Scripts に ramen_common.lua がなければ、src の元のものを入れる
         if mod in NEEDS_COMMON and not (src / "Scripts" / "ramen_common.lua").exists():

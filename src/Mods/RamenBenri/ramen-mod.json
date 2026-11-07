@@ -1,0 +1,12 @@
+{
+  "id": "ramen-benri",
+  "name": "ラーメンMOD: 便利機能（バランス崩壊）",
+  "app_id": "4968640",
+  "game_builds": [],
+  "ue4ss": ">=3.0.1",
+  "dependencies": [],
+  "multiplayer": "Host Only",
+  "assets": [],
+  "source": "https://github.com/kazu20080619-byte/ramen-mod",
+  "description": "F1 でべんりメニュー：お金・ゲームの速さ・歩くはやさ・飛ぶ／壁すりぬけ・ワープ（5 か所）・お店のレベルと経験値。前の Ctrl+F1〜F6 とコンソールの benri も使える。"
+}

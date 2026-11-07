@@ -17,9 +17,22 @@ namespace RamenLauncher
         [STAThread]
         static int Main(string[] args)
         {
-            if (args.Length > 0 && args[0] == "--test") return Tests.Run(args);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
+            if (args.Length > 0 && args[0] == "--test") return Tests.Run(args);
+            // 新しい画面（WebView2）。使えないときは、前の画面で起動する
+            WebUi.EnsureDlls();
+            string why;
+            if (WebUi.Available(out why))
+            {
+                try
+                {
+                    if (WebUi.RunWeb(null, null)) return 0;
+                    why = "WebView2 を始められませんでした（くわしくは launcher.log）";
+                }
+                catch (Exception ex) { why = ex.GetType().Name + ": " + ex.Message; }
+            }
+            WebUi.FileLog("前の画面で起動します: " + why);
             Application.Run(new MainForm());
             return 0;
         }
@@ -70,9 +83,18 @@ namespace RamenLauncher
             var tabs = new TabControl { Location = new Point(12, 52), Size = new Size(780, 510), Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
             tabs.TabPages.Add(BuildHome());
             tabs.TabPages.Add(BuildMods());
-            tabs.TabPages.Add(BuildRecords());
-            tabs.TabPages.Add(BuildDiag());
-            tabs.SelectedIndexChanged += (s, e) => { if (tabs.SelectedIndex == 2) LoadRecords(); if (tabs.SelectedIndex == 3) LoadDiag(); };
+            var cfgPage = BuildConfig();
+            tabs.TabPages.Add(cfgPage);
+            var recPage = BuildRecords();
+            tabs.TabPages.Add(recPage);
+            var diagPage = BuildDiag();
+            tabs.TabPages.Add(diagPage);
+            tabs.SelectedIndexChanged += (s, e) =>
+            {
+                if (tabs.SelectedTab == cfgPage) LoadConfig();
+                if (tabs.SelectedTab == recPage) LoadRecords();
+                if (tabs.SelectedTab == diagPage) LoadDiag();
+            };
             Controls.Add(tabs);
 
             win64 = Core.IsValidWin64(settings.GameDir) ? settings.GameDir : Core.FindGameWin64();
@@ -154,6 +176,134 @@ namespace RamenLauncher
             p.Controls.Add(MakeButton("UE4SS も入れなおして適用", 230, 280, 260, false, (s, e) => ApplyMods(true)));
             p.Controls.Add(MakeLabel("ガチャの回数・エモート・運勢・台の向きと大きさ・自分で変えた設定（config.lua）は残ります。\n選ばなかった MOD はオフになるだけで、記録は消えません。", 16, 336, Sub));
             return p;
+        }
+
+        // ------------------------------------------------------------------
+        // MOD の設定（config.lua）
+        // ------------------------------------------------------------------
+        ListBox cfgModList;
+        Panel cfgPanel;
+        Label cfgFrom;
+        string cfgMod, cfgText;
+        readonly Dictionary<ConfigField, Control> cfgControls = new Dictionary<ConfigField, Control>();
+        readonly Dictionary<ConfigField, string> cfgLoaded = new Dictionary<ConfigField, string>();
+        List<ModInfo> cfgMods;
+
+        TabPage BuildConfig()
+        {
+            var p = Page("MOD の設定");
+            p.Controls.Add(MakeLabel("MOD ごとの設定（config.lua）を変えられます。ゲームを起動しなおすと反映されます。", 16, 10, Sub));
+            cfgMods = Core.Mods.Where(m => ModConfig.Fields.ContainsKey(m.Folder)).ToList();
+            cfgModList = new ListBox { Location = new Point(16, 36), Size = new Size(180, 380), BackColor = Panel, ForeColor = Fg, BorderStyle = BorderStyle.FixedSingle, Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left };
+            foreach (var m in cfgMods) cfgModList.Items.Add(m.Name);
+            cfgModList.SelectedIndexChanged += (s, e) => ShowConfig();
+            p.Controls.Add(cfgModList);
+            cfgPanel = new Panel { Location = new Point(212, 36), Size = new Size(540, 380), AutoScroll = true, BackColor = Bg, Anchor = AnchorStyles.Top | AnchorStyles.Bottom | AnchorStyles.Left | AnchorStyles.Right };
+            p.Controls.Add(cfgPanel);
+            p.Controls.Add(MakeButton("保存", 212, 424, 160, true, (s, e) => SaveConfig()));
+            p.Controls.Add(MakeButton("はじめの設定にもどす", 382, 424, 200, false, (s, e) => ResetConfig()));
+            cfgFrom = MakeLabel("", 16, 428, Sub);
+            cfgFrom.MaximumSize = new Size(190, 0);
+            p.Controls.Add(cfgFrom);
+            return p;
+        }
+
+        void LoadConfig()
+        {
+            if (cfgModList.SelectedIndex < 0 && cfgModList.Items.Count > 0) cfgModList.SelectedIndex = 0;
+            else ShowConfig();
+        }
+
+        void ShowConfig()
+        {
+            int i = cfgModList.SelectedIndex;
+            if (i < 0) return;
+            cfgMod = cfgMods[i].Folder;
+            string from;
+            cfgText = ModConfig.LoadText(Core.IsValidWin64(win64) ? win64 : null, cfgMod, out from);
+            cfgFrom.Text = from == null ? "config.lua がありません" : from.StartsWith(Core.PayloadDir) ? "はじめの設定（まだ変えていません）" : "ゲームの設定";
+            cfgPanel.SuspendLayout();
+            cfgPanel.Controls.Clear();
+            cfgControls.Clear();
+            cfgLoaded.Clear();
+            int y = 4;
+            foreach (var f in ModConfig.Fields[cfgMod])
+            {
+                var v = ModConfig.Read(cfgText, f) ?? f.Default;
+                cfgLoaded[f] = v;
+                Control c;
+                if (f.Kind == FieldKind.Bool)
+                {
+                    c = new CheckBox { Text = f.Label, Checked = v == "true", Location = new Point(4, y), AutoSize = true, ForeColor = Fg };
+                }
+                else
+                {
+                    cfgPanel.Controls.Add(new Label { Text = f.Label, Location = new Point(4, y + 3), Size = new Size(250, 22), ForeColor = Fg });
+                    if (f.Kind == FieldKind.Choice)
+                    {
+                        var cb = new ComboBox { Location = new Point(260, y), Width = 240, DropDownStyle = ComboBoxStyle.DropDownList, BackColor = Panel, ForeColor = Fg, FlatStyle = FlatStyle.Flat };
+                        foreach (var l in f.ChoiceLabels) cb.Items.Add(l);
+                        cb.SelectedIndex = Math.Max(0, Array.IndexOf(f.Choices, v));
+                        c = cb;
+                    }
+                    else c = new TextBox { Text = v, Location = new Point(260, y), Width = 240, BackColor = Panel, ForeColor = Fg, BorderStyle = BorderStyle.FixedSingle };
+                }
+                cfgPanel.Controls.Add(c);
+                cfgControls[f] = c;
+                y += 30;
+            }
+            cfgPanel.ResumeLayout();
+        }
+
+        string ConfigValue(ConfigField f)
+        {
+            var c = cfgControls[f];
+            var chk = c as CheckBox;
+            if (chk != null) return chk.Checked ? "true" : "false";
+            var cb = c as ComboBox;
+            if (cb != null) return f.Choices[Math.Max(0, cb.SelectedIndex)];
+            return c.Text;
+        }
+
+        void SaveConfig()
+        {
+            if (cfgMod == null) return;
+            if (!Core.IsValidWin64(win64)) { MessageBox.Show("ゲームの場所が決まっていません。", Text); return; }
+            var text = cfgText;
+            var errors = new List<string>();
+            int changed = 0;
+            foreach (var f in ModConfig.Fields[cfgMod])
+            {
+                var v = ConfigValue(f).Trim();
+                if (v == cfgLoaded[f]) continue;   // 変えていない項目は、ファイルのまま
+                try { text = ModConfig.Write(text, f, v); changed++; }
+                catch (FormatException ex) { errors.Add(ex.Message); }
+            }
+            if (errors.Count > 0) { MessageBox.Show("直してください:\n" + string.Join("\n", errors), Text); return; }
+            if (changed == 0) { MessageBox.Show("変えたところがありません。", Text); return; }
+            try
+            {
+                ModConfig.SaveText(win64, cfgMod, text);
+                Log(cfgMod + " の設定を保存しました（" + changed + " か所。前のものは config.lua.bak）");
+                MessageBox.Show("保存しました。ゲームを起動しなおすと反映されます。", Text);
+            }
+            catch (Exception ex) { MessageBox.Show("保存できませんでした:\n" + ex.Message, Text); }
+            ShowConfig();
+        }
+
+        void ResetConfig()
+        {
+            if (cfgMod == null) return;
+            if (!Core.IsValidWin64(win64)) { MessageBox.Show("ゲームの場所が決まっていません。", Text); return; }
+            if (MessageBox.Show(cfgMods[cfgModList.SelectedIndex].Name + " の設定を、はじめの設定にもどしますか？\n（いまのものは config.lua.bak に残します）", Text, MessageBoxButtons.YesNo) != DialogResult.Yes) return;
+            try
+            {
+                ModConfig.ResetToDefault(win64, cfgMod);
+                Log(cfgMod + " の設定を、はじめの設定にもどしました");
+                MessageBox.Show("もどしました。ゲームを起動しなおすと反映されます。", Text);
+            }
+            catch (Exception ex) { MessageBox.Show("もどせませんでした:\n" + ex.Message, Text); }
+            ShowConfig();
         }
 
         TabPage BuildRecords()
@@ -341,11 +491,15 @@ namespace RamenLauncher
                 if (mods)
                 {
                     Log("MOD をダウンロードしています（" + r.Tag + "）…");
-                    var zip = Updater.DownloadMods(r);
-                    Updater.InstallPayloadZip(zip, Log);
-                    msg = Updater.ReapplyIfInstalled(w, Log);
-                    Updater.FinishPayload();
-                    Updater.DeleteTemp(zip);
+                    var zip = Updater.TempZipPath();
+                    try
+                    {
+                        Updater.DownloadMods(r, zip);
+                        Updater.InstallPayloadZip(zip, Log);
+                        msg = Updater.ReapplyIfInstalled(w, Log);
+                        Updater.FinishPayload();
+                    }
+                    finally { Updater.DeleteTemp(zip); }  // 失敗しても、ダウンロードした一時ファイルは消す
                 }
                 if (exe)
                 {
@@ -615,6 +769,65 @@ namespace RamenLauncher
                         break;
                     case "uninstall":
                         o.AppendLine("moved=" + Core.Uninstall(a[2]));
+                        break;
+                    case "ui-smoke":
+                        // ui-smoke [絵を保存するフォルダ]
+                        {
+                            string why;
+                            WebUi.EnsureDlls();
+                            if (!WebUi.Available(out why)) { o.AppendLine("webview2=unavailable " + why); break; }
+                            var tmp = Path.GetTempFileName();
+                            bool ok = WebUi.RunWeb(tmp, a.Length > 2 ? a[2] : null);
+                            o.AppendLine("webview2=" + (ok ? "ok" : "init-failed"));
+                            o.Append(File.ReadAllText(tmp, Encoding.UTF8));
+                            File.Delete(tmp);
+                        }
+                        break;
+                    case "catalog":
+                        foreach (var m in Catalog.Mods)
+                            o.AppendLine(m.Folder + " id=" + m.Id + " v=" + m.Version + " builtin=" + m.Builtin + " pack=" + m.Pack + " mark=" + m.Mark
+                                + " keys=" + string.Join(",", m.Keys.Select(k => k.Key + "@" + k.Where)) + " deps=" + string.Join(",", m.Deps.Select(d => d.Id + d.Version))
+                                + " config=" + (m.Config == null ? 0 : m.Config.Length) + (m.Problems.Count > 0 ? " problems=" + string.Join("|", m.Problems) : ""));
+                        foreach (var kv in ModConfig.Fields) o.AppendLine("fields " + kv.Key + "=" + kv.Value.Length + " groups=" + string.Join("/", kv.Value.Select(f => f.Group).Distinct()));
+                        break;
+                    case "import":
+                        // import <zip>（RAMEN_LAUNCHER_DATA でためしのフォルダにしてから）
+                        {
+                            var m = Catalog.Import(a[2], s => o.AppendLine(s));
+                            o.AppendLine("imported=" + m.Folder + " id=" + m.Id + " v=" + m.Version + " src=" + m.SourceDir);
+                        }
+                        break;
+                    case "remove":
+                        Catalog.Remove(a[2], a.Length > 3 ? a[3] : null, s => o.AppendLine(s));
+                        o.AppendLine("mods=" + string.Join(",", Catalog.Mods.Select(m => m.Folder)));
+                        break;
+                    case "check":
+                        // check <A,B,...>
+                        foreach (var c in Catalog.Check(a.Length > 2 && a[2] != "-" ? a[2].Split(',') : new string[0])) o.AppendLine(c.Level + ": " + c.Text);
+                        o.AppendLine("done");
+                        break;
+                    case "satisfies":
+                        o.AppendLine(Catalog.Satisfies(a[2], a[3]).ToString());
+                        break;
+                    case "profile":
+                        // profile save <名前> <A,B> | profile delete <名前> | profile list
+                        if (a[2] == "save") Catalog.SaveProfile(a[3], a[4].Split(','));
+                        if (a[2] == "delete") Catalog.DeleteProfile(a[3]);
+                        foreach (var kv in Catalog.Profiles()) o.AppendLine(kv.Key + "=" + string.Join(",", kv.Value));
+                        break;
+                    case "config":
+                        // config <win64> <Mod> <field> <value>（1 つ書きかえて、できたファイルを出す）
+                        {
+                            var cf = ModConfig.Fields[a[3]].First(x => x.Name == a[4]);
+                            string from;
+                            var text = ModConfig.LoadText(a[2], a[3], out from);
+                            o.AppendLine("from=" + from + " before=" + (ModConfig.Read(text, cf) ?? "(none)"));
+                            ModConfig.SaveText(a[2], a[3], ModConfig.Write(text, cf, string.Join(" ", a.Skip(5))));
+                            var after = File.ReadAllText(ModConfig.GamePath(a[2], a[3]), Encoding.UTF8);
+                            o.AppendLine("after=" + ModConfig.Read(after, cf));
+                            o.AppendLine("----");
+                            o.Append(after);
+                        }
                         break;
                     case "update-check":
                         // update-check <いまの版のふり> [owner/name]

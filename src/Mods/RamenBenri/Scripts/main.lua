@@ -1,5 +1,20 @@
 -- RamenBenri: べんり3GX から持ってきた便利機能。F1 でべんりメニュー（↑↓ 選ぶ・←→ 変える・Enter 決定）
--- コンソールは @ か F10 で開く。「benri」と打つと使い方が出る。
+-- コンソールは @ か F10 で開く。「benri」と打つと使い方が出る。設定は Mods/RamenBenri/config.lua
+
+local C = require("ramen_common")
+local MOD = "RamenBenri"
+local CFG = C.config(MOD, {
+    menuKey = "F1",                              -- メニューを開くキー（UE4SS の Key の名前）
+    ctrlKeys = true,                             -- Ctrl+F1〜F6 のキーも使う
+    ctrlMoney = 10000,                           -- Ctrl+F1 で足すお金
+    money = { 1000, 10000, 100000, 1000000 },    -- メニューの「お金を足す」の候補
+    moneyStart = 2,                              -- 最初に選ばれている候補（何番目か）
+    speeds = { 1.0, 2.0, 4.0, 8.0, 0.5 },        -- ゲームの速さの候補（1 番目がふつう）
+    walkSpeeds = { 1.0, 2.0, 3.0, 0.5 },         -- 歩くはやさの候補（1 番目がふつう）
+    slots = 5,                                   -- 場所を覚えられる数
+    rememberPlaces = true,                       -- 覚えた場所をワールドごとに保存する（次に遊ぶときも使える）
+    maxLevel = 30,                               -- 「お店のレベルにする」の上限
+})
 
 local function pc()
     local p = FindFirstOf("PlayerController")
@@ -48,7 +63,7 @@ local function spawnItem(id)
 end
 
 -- ゲームの速さ -------------------------------------------------------------
-local SPEEDS = { 1.0, 2.0, 4.0, 8.0, 0.5 }
+local SPEEDS = CFG.speeds
 local speedIndex = 1
 local function setGameSpeed(v)
     local c = cheat(); if not c then return end
@@ -61,7 +76,7 @@ end
 
 -- 歩くはやさ ---------------------------------------------------------------
 -- 主人公は Mover で動くので、MenPlayerCharacter の WalkMoveSpeed / SprintMoveSpeed を変える
-local WALK = { 1.0, 2.0, 3.0, 0.5 }
+local WALK = CFG.walkSpeeds
 local walkIndex = 1
 local base = nil
 local function setWalk(mult)
@@ -101,38 +116,48 @@ local function nextMoveMode()
 end
 
 -- 場所の記憶・ワープ -------------------------------------------------------
-local saved = {}
+-- rememberPlaces なら、ワールドごとに Mods/RamenBenri/data/<ワールド>.lua に残す
+local saved, savedWorld = {}, nil
+local function places()
+    if not CFG.rememberPlaces then return saved end
+    local w = C.worldId()
+    if w and w ~= savedWorld then
+        savedWorld = w
+        local d = C.loadData(MOD, w)
+        saved = d.places or {}
+    end
+    return saved
+end
 local function savePos(slot)
     local p = pawn(); if not p then return end
     local l = p:K2_GetActorLocation()
-    saved[slot] = { X = l.X, Y = l.Y, Z = l.Z }
+    local list = places()
+    list[slot] = { X = l.X, Y = l.Y, Z = l.Z }
+    if CFG.rememberPlaces and savedWorld then C.saveData(MOD, savedWorld, { places = list }) end
     say(string.format("場所 %d を覚えた (%.0f, %.0f, %.0f)", slot, l.X, l.Y, l.Z))
 end
 local function loadPos(slot)
     local p = pawn(); if not p then return end
-    local s = saved[slot]
+    local s = places()[slot]
     if not s then say("場所 " .. slot .. " はまだ覚えていない") return end
     p:K2_SetActorLocation(s, false, {}, true)
     say("場所 " .. slot .. " へワープ")
 end
 
 -- キー（Ctrl を押しながら） -----------------------------------------------
-local CTRL = { ModifierKey.CONTROL }
-local function key(k, mods, fn)
-    RegisterKeyBind(k, mods, function() ExecuteInGameThread(fn) end)
+if CFG.ctrlKeys then
+    local CTRL = { ModifierKey.CONTROL }
+    C.key(Key.F1, CTRL, function() addMoney(CFG.ctrlMoney) end, "ctrl+f1")
+    C.key(Key.F2, CTRL, nextGameSpeed, "ctrl+f2")
+    C.key(Key.F3, CTRL, nextWalk, "ctrl+f3")
+    C.key(Key.F4, CTRL, nextMoveMode, "ctrl+f4")
+    C.key(Key.F5, CTRL, function() savePos(1) end, "ctrl+f5")
+    C.key(Key.F6, CTRL, function() loadPos(1) end, "ctrl+f6")
 end
-key(Key.F1, CTRL, function() addMoney(10000) end)
-key(Key.F2, CTRL, nextGameSpeed)
-key(Key.F3, CTRL, nextWalk)
-key(Key.F4, CTRL, nextMoveMode)
-key(Key.F5, CTRL, function() savePos(1) end)
-key(Key.F6, CTRL, function() loadPos(1) end)
 
 -- べんりメニュー（3GX のように、F1 で開いて ↑↓ で選び、←→ で変えて、Enter で決定） --
-local C = require("ramen_common")
-
-local menu = { open = false, index = 1, widget = nil, money = 2, level = nil, slot = 1 }
-local MONEY = { 1000, 10000, 100000, 1000000 }
+local MONEY = CFG.money
+local menu = { open = false, index = 1, widget = nil, money = math.max(1, math.min(#MONEY, CFG.moneyStart)), level = nil, slot = 1 }
 
 -- メニューを開いているあいだ、ゲームの操作（歩く・しゃがむなど）を止める
 local IMC = "/Game/Men/Input/IMC_Men_Default.IMC_Men_Default"
@@ -173,15 +198,15 @@ local ITEMS = {
       enter = function() moveMode = 0; applyMoveMode() end },
     { text = function() return string.format("いまの場所を覚える　◀ %d 番 ▶", menu.slot) end,
       left = function() menu.slot = math.max(1, menu.slot - 1) end,
-      right = function() menu.slot = math.min(5, menu.slot + 1) end,
+      right = function() menu.slot = math.min(CFG.slots, menu.slot + 1) end,
       enter = function() savePos(menu.slot) end },
-    { text = function() return string.format("覚えた場所へワープ　◀ %d 番 ▶%s", menu.slot, saved[menu.slot] and "" or "（まだない）") end,
+    { text = function() return string.format("覚えた場所へワープ　◀ %d 番 ▶%s", menu.slot, places()[menu.slot] and "" or "（まだない）") end,
       left = function() menu.slot = math.max(1, menu.slot - 1) end,
-      right = function() menu.slot = math.min(5, menu.slot + 1) end,
+      right = function() menu.slot = math.min(CFG.slots, menu.slot + 1) end,
       enter = function() loadPos(menu.slot) end },
     { text = function() return string.format("お店のレベルにする　◀ %d ▶（いま %d）", menu.level or curLevel(), curLevel()) end,
       left = function() menu.level = math.max(0, (menu.level or curLevel()) - 1) end,
-      right = function() menu.level = math.min(30, (menu.level or curLevel()) + 1) end,
+      right = function() menu.level = math.min(CFG.maxLevel, (menu.level or curLevel()) + 1) end,
       enter = function() shopLevel(menu.level or curLevel()) end },
     { text = function() return "お店の経験値 +100" end,
       enter = function() addExp(100) end },
@@ -196,7 +221,7 @@ local function render()
         lines[#lines + 1] = (i == menu.index and "▶ " or "　 ") .. it.text()
     end
     lines[#lines + 1] = ""
-    lines[#lines + 1] = "↑↓ 選ぶ　←→ 変える　Enter 決定　F1 閉じる"
+    lines[#lines + 1] = "↑↓ 選ぶ　←→ 変える　Enter 決定　" .. CFG.menuKey .. " 閉じる"
     if not menu.widget or not menu.widget.widget:IsValid() then menu.widget = C.newText() end
     C.styleText(menu.widget, table.concat(lines, "\n"), { 1, 0.92, 0.75 }, 20, { 0.15, 0.05, 0 }, 3)
     C.showText(menu.widget, 0.24, 0.45, 1.25, 950)
@@ -229,31 +254,29 @@ local function toggle()
     render()
 end
 
-local function onKey(fn)
-    return function()
-        ExecuteInGameThread(function()
-            if not menu.open then return end
-            local ok, err = pcall(fn)
-            if not ok then print("[RamenBenri] menu error: " .. tostring(err) .. "\n") end
-            render()
-        end)
-    end
+-- メニューのキー（C.key: キーの呼び出しは別のスレッドなので、ゲームのスレッドに渡すだけ）
+local function onKey(k, fn)
+    C.key(k, nil, function()
+        if not menu.open then return end
+        fn()
+        render()
+    end, "menu key")
 end
 
-RegisterKeyBind(Key.UP_ARROW, onKey(function() menu.index = (menu.index - 2) % #ITEMS + 1 end))
-RegisterKeyBind(Key.DOWN_ARROW, onKey(function() menu.index = menu.index % #ITEMS + 1 end))
-RegisterKeyBind(Key.LEFT_ARROW, onKey(function() local it = ITEMS[menu.index]; if it.left then it.left() end end))
-RegisterKeyBind(Key.RIGHT_ARROW, onKey(function() local it = ITEMS[menu.index]; if it.right then it.right() end end))
-RegisterKeyBind(Key.RETURN, onKey(function() ITEMS[menu.index].enter() end))
+onKey(Key.UP_ARROW, function() menu.index = (menu.index - 2) % #ITEMS + 1 end)
+onKey(Key.DOWN_ARROW, function() menu.index = menu.index % #ITEMS + 1 end)
+onKey(Key.LEFT_ARROW, function() local it = ITEMS[menu.index]; if it.left then it.left() end end)
+onKey(Key.RIGHT_ARROW, function() local it = ITEMS[menu.index]; if it.right then it.right() end end)
+onKey(Key.RETURN, function() ITEMS[menu.index].enter() end)
 
 -- タイトルにもどったときなどは閉じる（ゲームの操作を もどす）
-LoopAsync(1000, function()
-    ExecuteInGameThread(function() if menu.open and not pawn() then menu.close() end end)
-    return false
-end)
+C.loop(1000, function()
+    if menu.open and not pawn() then menu.close() end
+end, "menu close")
 
-local MENU_KEY = Key.F1  -- メニューを開くキー
-RegisterKeyBind(MENU_KEY, function() ExecuteInGameThread(toggle) end)
+local MENU_KEY = Key[CFG.menuKey] or Key.F1  -- メニューを開くキー（config.lua の menuKey）
+if not Key[CFG.menuKey] then print("[RamenBenri] unknown menuKey: " .. tostring(CFG.menuKey) .. "\n") end
+C.key(MENU_KEY, nil, toggle, "menu")
 
 -- コンソール ---------------------------------------------------------------
 local HELP = [[

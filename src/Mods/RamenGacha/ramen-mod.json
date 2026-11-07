@@ -1,0 +1,14 @@
+{
+  "id": "ramen-gacha",
+  "name": "ラーメンMOD: ガチャガチャ",
+  "app_id": "4968640",
+  "game_builds": [],
+  "ue4ss": ">=3.0.1",
+  "dependencies": [],
+  "multiplayer": "Host Only",
+  "assets": [
+    "Men.ItemId.Decoration.Wetfloor"
+  ],
+  "source": "https://github.com/kazu20080619-byte/ramen-mod",
+  "description": "パソコンで「ガチャガチャ」を買って置く（清掃中看板を借りる）。台の前で E を押すとメニューが出て、1 回・10 連・向き・大きさ・動かすを選べる。天井 100 回。具材・ラーメンの雨・エモートが出る。エモートは ramen-emotes といっしょに使う。"
+}

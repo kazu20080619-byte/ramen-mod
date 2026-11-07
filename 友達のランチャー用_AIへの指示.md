@@ -65,6 +65,15 @@
    - いつもの「zip から MOD を入れる」処理で入れる
 7. ゲームが起動しているときは、ダウンロードだけして「ゲームを閉じてから入れてください」と出す
 
+## 4b. エモートのタグ（`ramen-emotes` を入れるときだけ）
+
+- 新しいエモートをゲームのロッカーで付けるには、GameplayTags の ini が要ります。これがないと、付けても保存されず空になります
+- リリースの `RamenMod-tags.ini` をダウンロードして、ゲームの `RealRamenSimulator/Config/Tags/RamenMod.ini` に置いてください（`Tags` フォルダがなければ作る。`Binaries/Win64` の 2 つ上の `Config/Tags`）
+  - 中身は `[/Script/GameplayTags.GameplayTagsList]` と `GameplayTagList=(Tag="Men.Emote.Mod.…")` の行だけのテキスト（数 KB）
+  - ダウンロードしたら、1 行目がこの見出しで、ほかの行が `GameplayTagList=(Tag="Men.Emote.Mod.` で始まることを確かめてから置く。ちがえば置かない
+- `ramen-emotes` を外す・配置解除するときは、このファイルも外す（バックアップに移す）
+- Lua の MOD の zip とはちがう場所に置くファイルなので、いつもの「zip から MOD を入れる」処理とは別にしてください
+
 ## 5. 守ってほしいこと（大事）
 
 - 各 MOD の **`data` フォルダと `config.lua` は消さない・上書きしない**（ガチャの回数・エモート・運勢・設定が入っている）。新しい zip に `config.lua` があっても、もう入っているならそのまま残す
